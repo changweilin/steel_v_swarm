@@ -34,7 +34,10 @@ rejects the fog scenes. On Linux run real-renderer checks as
   `civilianBodyGeometry` partition by partition and `tests/burst_suite.gd` parents
   its fixture units under a `BattleSimulation`; both edits are done but unpublished.
   Remaining: `tests/body_suite.gd` consumes `bodyGeometry` the same way (the other
-  sections fit the 256 MiB budget once both large sections are excluded), retaining
+  sections fit the 256 MiB budget once both large sections are excluded; the
+  closure is 1,010,537,852 bytes against 268,435,456 today), and
+  `tests/body_{aim,combat,gait}_suite.gd`, which body_suite preloads, must stream
+  it too because each reads `fixtures.bodyGeometry` whole. Retain
   every row, nested frame sequence, rig reset and cross-frame state. Do not raise
   the encoded-byte budget. Blockers: (1) the consumer scan in
   `tools/fixture_sections.mjs::fixtureConsumers` treats any quoted section name as a
@@ -88,6 +91,12 @@ rejects the fog scenes. On Linux run real-renderer checks as
   reports only the missing story terrain resources. The raster scenes
   (`aquatic`, `death`, `splat`) mismatch on the software GL renderer and need a
   real GPU run.
+
+- **Models — remaining `MultiMesh.duplicate()` calls:** `scripts/dissolve_binding.gd`,
+  `scripts/mobile_damage_geometry.gd` and `scripts/scene_damage_geometry.gd` still
+  call `batch.multimesh.duplicate()`, which sets the buffer before the instance
+  count in Godot 4.7.2. Use `MultiMeshCopy.of`. Acceptance: their dissolve and
+  damage suites on a real driver with empty engine error output.
 
 ## Integrated reruns
 

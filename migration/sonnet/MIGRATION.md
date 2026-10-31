@@ -1,7 +1,7 @@
 # Opus-unblocking fixes — outstanding work
 
 Read [AGENTS.md](AGENTS.md). Select one task; its exclusive files are in the root
-lease table. SN1-SN7 can run concurrently. SN8 waits for Opus O25/O26 and SN7.
+lease table. SN4 and SN6 are blocked as recorded. SN8 waits for Opus O25/O26.
 SN9 runs last. Each task records only its current failure.
 
 Local tools: process-local `SVS_SOURCE=C:/Users/user/Documents/app/steel_vs_swarm`,
@@ -52,14 +52,7 @@ rejects the fog scenes. On Linux run real-renderer checks as
 
 ## Generated content
 
-- [ ] **SN5 — Companion scenes:** `assets/companions/guer_tank.scn` nodes 61/62 and
-  `assets/companions/{steel,swarm,super}_main_battle_tank.scn` nodes 81/82 must match
-  the captured `companionGeometry` world bounds and hierarchy within the existing
-  tolerance. Change `tools/import_cockpits.gd`, then regenerate with
-  `godot --path . res://tools/import_cockpits.tscn -- --companions` on a real driver.
-  Acceptance: `tests/companion_suite.gd` with complete spawn, height and lifecycle
-  scope. Run alone.
-- [ ] **SN8 — Baseline authored world:** blocked by O25, O26 and SN7. After their
+- [ ] **SN8 — Baseline authored world:** blocked by O25 and O26. After their
   contracts are accepted, bind them in `tools/source_world_meshes.gd` and
   `tools/import_worlds.gd`, then regenerate the bundles selected by smoke and the
   baseline transports through `tools/migrate_worlds.ps1`. All `berlin_1_*` captures
@@ -98,7 +91,7 @@ rejects the fog scenes. On Linux run real-renderer checks as
 
 ## Integrated reruns
 
-- [ ] **SN9 — Rerun and report:** after SN3 and SN8, run the changed clocks, then
+- [ ] **SN9 — Rerun and report:** after SN8, run the changed network clocks (parse-checked only so far), then
   the root suite, smoke and affected transports, one switch per run. Record each
   failure as an exact Opus request; do not fix authority or lifecycle code.
   - `-Bots` on both transports: `tests/bot_network.gd` now starts mid-lane with the

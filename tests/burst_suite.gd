@@ -37,11 +37,14 @@ static func run(h: Node, fixtures: Dictionary) -> void:
 static func poses(h: Node, fixtures: Array) -> void:
 	var frames := 0
 	var maximum_error := 0.0
+	# CockpitRig.update_view reads the presentation clock from the unit's simulation parent.
+	var simulation := BattleSimulation.new()
+	h.add_child(simulation)
 	for fixture: Dictionary in fixtures:
 		var pose := AuthorityWeaponPose.new()
 		pose.configure(fixture.character)
 		var unit := BattleUnit.new()
-		h.add_child(unit)
+		simulation.add_child(unit)
 		unit.configure({"id": 9901, "character": fixture.character, "kind": Content.heroes[fixture.character].kind,
 			"side": "STEEL", "position": Vector3.ZERO})
 		unit.ensure_cockpit()
@@ -91,6 +94,7 @@ static func poses(h: Node, fixtures: Array) -> void:
 				maximum_error = maxf(maximum_error, error)
 				h._check(error < 0.0001, "Original burst current port and fallback alias: %s/%s frame=%d error=%s" % [fixture.character, fixture.form, frames, error])
 		unit.free()
+	simulation.free()
 	print("BURST_POSE_REFERENCE_PASS sequences=", fixtures.size(), " frames=", frames, " maximum_error=", maximum_error)
 
 static func integration(h: Node) -> void:

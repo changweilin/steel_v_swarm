@@ -1,52 +1,61 @@
 extends RefCounted
 
 const Helper = preload("res://tests/status_suite.gd")
+const GEOMETRY := "civilianBodyGeometry"
 
-static func run(h: Node, fixtures: Dictionary) -> void:
-	if not fixtures.has("civilianBodyGeometry"):
+static func run(h: Node, _fixtures: Dictionary = {}) -> void:
+	var section: Dictionary = Content.fixture_registry.get("sections", {}).get(GEOMETRY, {})
+	if section.is_empty():
 		h._check(false, "Regenerate original per-ID civilian geometry and articulated-frame references")
 		return
-	for item: Dictionary in fixtures.civilianBodyGeometry:
-		var unit := BattleUnit.new()
-		h.add_child(unit)
-		unit.configure({"id": int(item.seed), "kind": "civilian", "side": "", "position": Vector3.ZERO,
-			"special": {"role": "civilian", "civil_side": item.side, "profession": int(item.profession)}})
-		if unit.body_presentation == null:
-			h._check(false, "Pack original civilian components")
-			unit.free()
-			continue
-		unit.body.rotation.y = 0
-		for node: Node3D in unit.body.nodes.values():
-			var geometry := ViewOcclusion._geometry(node)
-			if geometry == null:
-				continue
-			for surface in range(geometry.get_surface_count()):
-				var material := ViewOcclusion._material(node as GeometryInstance3D, surface)
-				if material != null and material.has_meta("source_original_material"):
-					material = material.get_meta("source_original_material")
-				if material == null or not material.has_meta("source_cel"):
-					continue
-				var source := SourceCelData.material_source(material)
-				var data := material.get_meta("source_cel_data", null) as SourceCelData
-				h._check(data != null and int(source.program) >= 0 and int(source.program) < data.programs.size(),
-					"Assembled civilian surfaces retain component-local shader programs after discarded part roots are freed")
-				if data != null:
-					h._check(data.samplers.size() == data.sampler_images.size(), "Civilian material bundles retain raw image sampler resources after assembly")
-		unit.body_presentation.pending_snap = false
-		Helper.compare(h, unit.body.profile.appearance, item.appearance, "Original civilian seed/profession appearance is independent of combat RNG")
-		Helper.compare(h, unit.geometry_override, item.dimensions, "Original per-ID civilian silhouette and asymmetric model centre")
-		var previous := Vector3.ZERO
-		var previous_yaw := 0.0
-		for step: Dictionary in item.steps:
-			var point := BodyPose.vector(step.position)
-			unit.body.poses.set_position(unit.body.source_root, point)
-			unit.body.poses.set_axis(unit.body.source_root, "y", step.yaw)
-			unit.body.step_combat(unit.body_presentation.entity, step.now, step.delta)
-			unit.body.step_locomotion(unit.body_presentation.entity, step.delta, step.now, previous, previous_yaw)
-			_compare_meshes(h, unit.body, step.meshes)
-			previous = point
-			previous_yaw = step.yaw
+	# The oracle is too large to hold at once; each part is compared and released before the next.
+	for part in section.parts.size():
+		var items: Array = Content.read_fixture_part(GEOMETRY, part)
+		for item: Dictionary in items:
+			_case(h, item)
+		items.clear()
+
+static func _case(h: Node, item: Dictionary) -> void:
+	var unit := BattleUnit.new()
+	h.add_child(unit)
+	unit.configure({"id": int(item.seed), "kind": "civilian", "side": "", "position": Vector3.ZERO,
+		"special": {"role": "civilian", "civil_side": item.side, "profession": int(item.profession)}})
+	if unit.body_presentation == null:
+		h._check(false, "Pack original civilian components")
 		unit.free()
+		return
+	unit.body.rotation.y = 0
+	for node: Node3D in unit.body.nodes.values():
+		var geometry := ViewOcclusion._geometry(node)
+		if geometry == null:
+			continue
+		for surface in range(geometry.get_surface_count()):
+			var material := ViewOcclusion._material(node as GeometryInstance3D, surface)
+			if material != null and material.has_meta("source_original_material"):
+				material = material.get_meta("source_original_material")
+			if material == null or not material.has_meta("source_cel"):
+				continue
+			var source := SourceCelData.material_source(material)
+			var data := material.get_meta("source_cel_data", null) as SourceCelData
+			h._check(data != null and int(source.program) >= 0 and int(source.program) < data.programs.size(),
+				"Assembled civilian surfaces retain component-local shader programs after discarded part roots are freed")
+			if data != null:
+				h._check(data.samplers.size() == data.sampler_images.size(), "Civilian material bundles retain raw image sampler resources after assembly")
+	unit.body_presentation.pending_snap = false
+	Helper.compare(h, unit.body.profile.appearance, item.appearance, "Original civilian seed/profession appearance is independent of combat RNG")
+	Helper.compare(h, unit.geometry_override, item.dimensions, "Original per-ID civilian silhouette and asymmetric model centre")
+	var previous := Vector3.ZERO
+	var previous_yaw := 0.0
+	for step: Dictionary in item.steps:
+		var point := BodyPose.vector(step.position)
+		unit.body.poses.set_position(unit.body.source_root, point)
+		unit.body.poses.set_axis(unit.body.source_root, "y", step.yaw)
+		unit.body.step_combat(unit.body_presentation.entity, step.now, step.delta)
+		unit.body.step_locomotion(unit.body_presentation.entity, step.delta, step.now, previous, previous_yaw)
+		_compare_meshes(h, unit.body, step.meshes)
+		previous = point
+		previous_yaw = step.yaw
+	unit.free()
 
 static func _compare_meshes(h: Node, body: BodyRig, expected: Array) -> void:
 	var meshes: Array = body.source_root.find_children("*", "MeshInstance3D", true, false).filter(func(mesh): return not mesh.get_meta("isOutline", false))

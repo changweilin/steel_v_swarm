@@ -91,9 +91,16 @@ static func dialogue_lifecycle(h: Node) -> void:
 	old_timer.timeout.emit()
 	h._check(dialogue.at == 0 and dialogue.bar == null, "Cancelled generation cannot restore an old radio line")
 	dialogue.radio(scene)
-	clock.now += dialogue.timers[0].wait_time * 1000
-	dialogue.timers[0].timeout.emit()
+	var line_timer: Timer = dialogue.timers[0]
+	var deadline: float = clock.now + line_timer.wait_time * 1000
+	clock.now = deadline - .001
+	line_timer.timeout.emit()
+	h._check(dialogue.at == 1 and dialogue.timers.size() == 1 and dialogue.timers[0] == line_timer, "An early radio timeout is rearmed and cannot advance the line before its wall deadline")
+	clock.now = deadline
+	line_timer.timeout.emit()
 	h._check(dialogue.at == 2, "Live radio advances by timer without manual gameplay input")
+	line_timer.timeout.emit()
+	h._check(dialogue.at == 2, "A delivered line deadline advances the radio only once")
 	dialogue.dispose()
 	h._check(not dialogue.track_label.visible and dialogue.timers.is_empty(), "Room exit disposes radio and stage track")
 	dialogue.queue_free()

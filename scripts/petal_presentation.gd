@@ -96,7 +96,7 @@ func configure(root: Node3D, source: Dictionary, season: String, low: bool, heig
 		if node == null or node.multimesh == null or node.multimesh.instance_count != int(batch.count) or node.multimesh.mesh.get_surface_count() != 1:
 			push_error("Missing original petal tone MultiMesh")
 			return false
-		node.multimesh = node.multimesh.duplicate()
+		node.multimesh = MultiMeshCopy.duplicate_of(node.multimesh)
 		if not _current(token):
 			return false
 		var material: Material = node.material_override if node.material_override != null else node.multimesh.mesh.surface_get_material(0)

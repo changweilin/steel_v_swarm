@@ -10,7 +10,7 @@ func _run() -> void:
 		push_error("Aquatic point raster certification requires a rendered Godot session")
 		get_tree().quit(1)
 		return
-	var fixtures: Dictionary = _captured_fixtures() if OS.get_cmdline_user_args().has("--source-capture") else Content.read_json("res://data/fixtures.json")
+	var fixtures: Dictionary = _captured_fixtures() if OS.get_cmdline_user_args().has("--source-capture") else Content.read_json("res://data/fixtures.json", ["aquaticPointRasters"])
 	if not fixtures.has("aquaticPointRasters"):
 		push_error("Regenerate original PointsMaterial WebGL raster references")
 		get_tree().quit(1)

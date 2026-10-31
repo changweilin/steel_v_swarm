@@ -15,7 +15,8 @@ var physical_muzzle_seen := false
 var accepted_muzzle := Vector3(INF, INF, INF)
 
 func _physics_process(delta: float) -> void:
-	elapsed += delta
+	if Session.launch_announced:
+		elapsed += delta
 	if elapsed > 16:
 		push_error("NETWORK_COCKPIT_TIMEOUT light=%s heavy=%s reload=%s pose=%s zoom=%s death=%s" % [light_seen, heavy_seen, reload_seen, pose_seen, zoom_seen, death_seen])
 		get_tree().quit(1)

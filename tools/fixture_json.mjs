@@ -1,4 +1,5 @@
 import {open,rename,rm,writeFile} from 'node:fs/promises';
+import {randomUUID} from 'node:crypto';
 import {Readable} from 'node:stream';
 import {pipeline} from 'node:stream/promises';
 import {setTimeout as delay} from 'node:timers/promises';
@@ -15,12 +16,21 @@ async function publishFile(temporary,path) {
 }
 export {publishFile as publishSourceFile};
 
+// Every invocation owns a distinct staging identity, even within one clock tick or process.
+let stagingSequence=0;
+function stagingPath(path) {
+  return path+'.partial-'+process.pid+'-'+Date.now()+'-'+(stagingSequence++)+'-'+randomUUID();
+}
+
 export async function writeSourceFile(path,data) {
   if(typeof path!=='string')throw new TypeError('Expected a source output path');
-  const temporary=path+'.partial-'+process.pid+'-'+Date.now();
+  const temporary=stagingPath(path);
+  // A rejected exclusive open leaves any foreign bytes in place; only an opened file is ours to remove.
+  const handle=await open(temporary,'wx');
   let encoded=false;
   try {
-    await writeFile(temporary,data,{flag:'wx'});
+    try {await handle.writeFile(data);}
+    finally {await handle.close();}
     encoded=true;
     await publishFile(temporary,path);
   } catch(error) {
@@ -108,7 +118,7 @@ function* fixtureChunks(fixtures) {
 export async function writeFixtureJson(path,fixtures) {
   if(typeof path!=='string'||fixtures===null||typeof fixtures!=='object'||Array.isArray(fixtures)
     ||typeof fixtures.toJSON==='function')throw new TypeError('Expected a fixture file path and plain fixture sections');
-  const temporary=path+'.partial-'+process.pid+'-'+Date.now();
+  const temporary=stagingPath(path);
   const handle=await open(temporary,'wx');
   let encoded=false;
   try {

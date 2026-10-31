@@ -11,7 +11,8 @@ var authority_echo_seen := false
 var client_echo_seen := false
 
 func _physics_process(delta: float) -> void:
-	elapsed += delta
+	if Session.launch_announced:
+		elapsed += delta
 	if elapsed > 16:
 		push_error("NETWORK_BURST_TIMEOUT first=%s second=%s authority=%s client=%s" % [first_seen, second_seen, authority_echo_seen, client_echo_seen])
 		get_tree().quit(1)

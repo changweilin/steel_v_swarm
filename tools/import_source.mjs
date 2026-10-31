@@ -151,6 +151,13 @@ if(process.argv.includes('--audio-music-gain')) {
   await publishAudioMusicGain(root,source,{playwrightModule:option('--playwright-module'),chrome:option('--chrome')});
   process.exit(0);
 }
+if(process.argv.includes('--story-images')) {
+  if(outputIndex>=0||auditReferencesOnly)throw new Error('Choose one source publication operation');
+  const option=name=>{const index=process.argv.indexOf(name);return index<0?undefined:resolve(process.argv[index+1]);};
+  const {publishStoryImages}=await import('./story_images.mjs');
+  await publishStoryImages(root,source,{playwrightModule:option('--playwright-module'),chrome:option('--chrome')});
+  process.exit(0);
+}
 const producer=auditReferencesOnly?null:await captureGenerator(root);
 const sourceBefore=auditReferencesOnly?null:await captureSourceFiles(source);
 const workspaceBefore=auditReferencesOnly?null:await captureWorkspaceInputs(root);
@@ -480,6 +487,14 @@ for (const [name, value] of Object.entries({ balance: { constants, heroes, unitV
 }
 for (const folder of ['models/reference', 'models/combat', 'models/factions', 'characters', 'avatars', 'mechs', 'mech_avatars', 'story']) {
   await cp(join(source, 'public/assets', folder), join(publicationRoot, 'assets', folder), { recursive: true,onFile:recordAssetInput });
+}
+{
+  // The verbatim story copies are JPEG bytes under PNG names; replace them with
+  // their native lossless encodings before provenance seals the publication.
+  const {launchStoryDecoder,encodeStoryImages,writeStoryManifest}=await import('./story_images.mjs');
+  const browser=await launchStoryDecoder(source);
+  try {await writeStoryManifest(publicationRoot,await encodeStoryImages(browser,source,publicationRoot,producer));}
+  finally {await browser.close();}
 }
 await mkdir(join(publicationRoot, 'assets/ui'), { recursive: true });
 for (const [id,definition] of Object.entries(controlsReference.rules.statusIcons.definitions)) {

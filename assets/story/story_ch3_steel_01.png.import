@@ -3,11 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dl5vg56nw1pm4"
-valid=false
+path="res://.godot/imported/story_ch3_steel_01.png-4d0f70c2efc77aa32c097b23cbae3194.ctex"
+metadata={
+"vram_texture": false
+}
 
 [deps]
 
 source_file="res://assets/story/story_ch3_steel_01.png"
+dest_files=["res://.godot/imported/story_ch3_steel_01.png-4d0f70c2efc77aa32c097b23cbae3194.ctex"]
 
 [params]
 

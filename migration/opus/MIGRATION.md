@@ -39,10 +39,16 @@ keep the full requests; find them by searching their backlogs for `**Opus`.
   - **O26B (lane B):** "exact native source JSON numbers", "float vertex colors" and
     "cel resource metadata". Add "original sign emission" if the selected baseline
     bundle has active glow.
-- [ ] **O27 — Story media (lane A):** all 70 PNG-named `assets/story/` files hold
-  JPEG bytes. Complete Terra's "story image encoding" and "failed story load guard",
-  then publish `assets/logo_flat.png` and `assets/loading/`. The offline copier
-  preserves authored bytes and excludes source-editor `.import` descriptors.
+- [ ] **O27 — Story media (lane A):** publish `assets/logo_flat.png` and
+  `assets/loading/` from the original checkout through `tools/import_source.mjs`.
+  The offline copier preserves authored bytes and excludes source-editor `.import`
+  descriptors; if they are also JPEG under PNG names, route them through
+  `tools/story_images.mjs` rather than copying. Terra's "story image encoding" and
+  "failed story load guard" are implemented (`data/story_images.json`,
+  `tests/story_images.tscn`); the full importer's integrated story step has not yet
+  run against a source checkout. Focused rerun:
+  `node tools/import_source.mjs <source> --story-images [--playwright-module <path>]`,
+  then `godot --headless --path . --import` and `res://tests/story_images.tscn`.
 
 Remaining inbound requests follow their files: `shaders/` and shared numeric/font
 adapters go to B, simulation and unit contracts to C, session and snapshot

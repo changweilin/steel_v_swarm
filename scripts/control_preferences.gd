@@ -95,7 +95,7 @@ func load_save(path: String = SAVE_PATH) -> void:
 	saved = file.get_value("control", "view_mode", view_pref)
 	if saved is String and saved in Content.balance.get("playerView", {}).get("modeKeys", []):
 		view_pref = saved
-	power_pref = file.get_value("presentation", "low_power", null)
+	power_pref = file.get_value("presentation", "low_power") if file.has_section_key("presentation", "low_power") else null
 	changed.emit()
 	view_changed.emit(view_pref)
 	power_changed.emit()

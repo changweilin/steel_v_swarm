@@ -11,29 +11,12 @@ and Godot at
 
 Isolate one suite with
 `godot --headless --path . res://tests/run.tscn -- --fixture-suite=tests/<suite>.gd`.
+Headless runs use the dummy renderer, which cannot read back MultiMesh data and
+rejects the fog scenes. On Linux run real-renderer checks as
+`xvfb-run -a godot --rendering-driver opengl3 --path . <scene>`.
 
 ## Presentation and lifecycle
 
-- [ ] **SN1 — MultiMesh copies:** add one helper in `scripts/multimesh_copy.gd`
-  and use it for the `MultiMesh.duplicate()` calls in the scenery, climb, aquatic,
-  wildlife and petal presentations and `scripts/view_occlusion.gd`. Allocate a
-  fresh `MultiMesh`, then copy `transform_format`, `use_colors`, `use_custom_data`,
-  `mesh`, `instance_count`, `visible_instance_count`, `custom_aabb` and `buffer` in
-  that order: Godot 4.7.2 `duplicate()` calls `set_buffer` before `instance_count`.
-  Preserve source instance transforms and duplicate before camp clearance. Also
-  match `expandByObject` descendant bounds, nine TPS body samples and instanced fade
-  restoration. Acceptance: `tests/structure_suite.gd` rotated, mirrored, zero-scale,
-  overlap and repeated-clearance cases, `tests/view_occlusion_suite.gd`, and the
-  scenery, climb-arrow, aquatic, wildlife and petal `_retirement.tscn` scenes.
-- [ ] **SN2 — Preferences and field fog:** `scripts/control_preferences.gd` checks
-  `has_section_key("presentation", "low_power")` before `ConfigFile.get_value` with
-  a `null` default and keeps `lookSens` clamp/persistence in `tests/mobile_suite.gd`.
-  `scripts/audio_preferences.gd` validates bracketed INI section headers before
-  `ConfigFile.parse` for `tests/audio_suite.gd` and matches
-  `tests/audio_clip_suite.gd` PCM conversion. Fix the fog vertex failures isolated
-  in `scripts/skill_field_presentation.gd`; retain every authority assertion.
-  Acceptance: those suites plus `tests/fog_geometry.tscn` and
-  `tests/fog_retirement.tscn`.
 - [ ] **SN6 — Cast effects:** add the original consumer to
   `scripts/combat_effects.gd` for the public `character`, `side`, `slot`, `fx`,
   `point`, `radius`, `duration`, `level`, `fraction`, `carrier`, `origin` and
@@ -41,26 +24,31 @@ Isolate one suite with
   removed caster anchors at the effect point, and carrier casts defer their
   destination effect until delivery. Never infer a generic effect from a passing
   publication fixture. Acceptance: a source-based native fixture for both branches,
-  with `tests/cast_events_suite.gd` unchanged.
+  with `tests/cast_events_suite.gd` unchanged. Blocked: `public/js/game.js` and
+  `castfx.js` are absent from this checkout, so neither branch can be derived;
+  run it where `SVS_SOURCE` exists and never substitute a generic effect.
 
 ## Test fixtures
 
-- [ ] **SN3 — Network clocks:** the body, burst, camera, cockpit, death, footprint,
-  mobile, projectile-visual, TPS and view `tests/*_network.gd` clocks start at scene
-  start; authored world loading outlasts their 15-18 s limits. Count from
-  `Session.launch_announced` as `tests/blast_network.gd` does. In
-  `tests/death_network.gd`, compare and send through `Session.seats.player_for` and
-  `transport_for`, because `peer_id` is a seat and `rpc_id` takes a transport.
-  Acceptance: each script parses and passes its transport case in SN9.
-- [ ] **SN4 — Model suites:** `tests/body_suite.gd` and
-  `tests/civilian_body_suite.gd` consume cases incrementally through
-  `Content.read_fixture_part(key, index)`, retaining every row, nested frame
-  sequence, rig reset and cross-frame state. Do not raise the encoded-byte budget.
-  `tests/burst_suite.gd` parents cockpit fixture units under a `BattleSimulation`
-  before `CockpitRig.update_view`, retaining all frames and serial/kick/muzzle
-  assertions. `scripts/civilian_body_builder.gd` unsets `owner` before reparenting
-  template nodes in `configure`. Acceptance: all three suites with bounded memory,
-  and `tests/snapshot_suite.gd` without inconsistent-owner warnings.
+- [ ] **SN4 — Model suites:** `tests/civilian_body_suite.gd` reads
+  `civilianBodyGeometry` partition by partition and `tests/burst_suite.gd` parents
+  its fixture units under a `BattleSimulation`; both edits are done but unpublished.
+  Remaining: `tests/body_suite.gd` consumes `bodyGeometry` the same way (the other
+  sections fit the 256 MiB budget once both large sections are excluded), retaining
+  every row, nested frame sequence, rig reset and cross-frame state. Do not raise
+  the encoded-byte budget. Blockers: (1) the consumer scan in
+  `tools/fixture_sections.mjs::fixtureConsumers` treats any quoted section name as a
+  whole-section dependency, so an incremental reader is still preloaded; the scan
+  must skip names read through `Content.read_fixture_part` /
+  `Content.fixture_registry`. (2) After that, run `refreshFixtureConsumers` for
+  O25 because the edited suites changed their registered hashes. (3)
+  `civilian_body_suite` then fails 4020 outline-width checks with the
+  incremental reader: civilian `torso` and `pelvis` shells report `local_width`
+  .06904542 / min .00303800 / max .00621409 against .06829454 / .00300496 /
+  .00614651. Source semantics of `OutlineRules.local_uniforms` after appearance
+  scaling need Opus before `scripts/civilian_body_builder.gd` changes. (4)
+  `burst_suite` cannot run until `assets/bodies/steel_s01.scn` (and the other
+  non-kami hero bodies) are published by Models.
 - [ ] **SN7 — Shared fixture corrections:** `tools/fixture_json.mjs::writeSourceFile`
   gives each invocation a unique temporary identity and removes only files it
   opened; fixed-clock concurrent writes must not delete a sibling's staging file.
@@ -96,6 +84,22 @@ Isolate one suite with
   fabricated map. The complete manifest stays in Sol S1. Acceptance:
   `tests/worlds.tscn -- --bundle=<bundle>`, `SMOKE_PASS` and both baseline
   transport cases. Run alone.
+
+## Requests to other owners
+
+- **Sol — `tests/mobile_suite.gd`:** `mobileTouchPreferences` case 5 carries
+  `lookSens: null`, but `ConfigFile.set_value(..., null)` erases the key, so the
+  loader sees an absent key (default 1.0) instead of the source clamp of
+  `Number(null)` (0.4). Write an empty string for a null fixture value before
+  `ConfigFile.save`; `ControlPreferences.normalize` already maps it to the minimum.
+  Acceptance: both `lookSens source scalar` assertions pass with no loader change.
+- **Sol/Opus — `tests/audio_suite.gd::_buses`:** the centered player check still
+  expects the logical gain .35; see the existing `audio_pcm_gain.gd::native_gain`
+  request in the Sol backlog. The only remaining `audio_suite` failure.
+- **Sol — scenery retirement scenes:** `scenery_binding_retirement` and
+  `scenery_host_retirement` each fail one check, "Current scenery producer:
+  data/worlds/berlin_1_autumn.json", a stale world producer hash. It clears with the
+  corrected world references and SN8 regeneration.
 
 ## Integrated reruns
 

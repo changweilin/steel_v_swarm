@@ -121,7 +121,7 @@ func _fade_one(mesh: GeometryInstance3D, now: float) -> void:
 		if not items.is_empty():
 			# MultiMesh has no node-level surface overrides. Keep animated instance
 			# buffers independent and replace only this node's material bindings.
-			var instances: MultiMesh = batch.multimesh.duplicate()
+			var instances := MultiMeshCopy.of(batch.multimesh)
 			var faded: Mesh = geometry.duplicate()
 			for item: Dictionary in items:
 				faded.surface_set_material(int(item.surface), item.faded)

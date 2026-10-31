@@ -102,7 +102,7 @@ func configure(root: Node3D, source: Dictionary) -> bool:
 			if node == null or node.multimesh == null or node.multimesh.instance_count != int(batch.count):
 				push_error("Missing original aquatic MultiMesh")
 				return false
-			node.multimesh = node.multimesh.duplicate()
+			node.multimesh = MultiMeshCopy.of(node.multimesh)
 			if not _current(token):
 				return false
 			RenderingServer.instance_set_ignore_culling(node.get_instance(), true)

@@ -264,7 +264,12 @@ contracts to D, and `scripts/main.gd` or `project.godot` contracts to E.
   A case that aborts before freeing its match leaks that world into later cases.
   Campaign deployment still requires authored chapter terrain. Pull failures
   reported by SN9; presentation failures cannot certify populated traversal or
-  field interactions.
+  field interactions. CI's `tools/export_web.ps1` `fixtures` step runs
+  `tests/run.tscn` headless. The dummy renderer drops per-instance MultiMesh
+  writes, so `MultiMeshCopy.of` reads an empty buffer and `aquatic_suite` reports
+  42030 failures. Under `xvfb-run -a godot --rendering-driver opengl3` it passes
+  196337 assertions with no errors. Run renderer-dependent suites on a real driver
+  in CI rather than weakening them.
 - [ ] **O24 — Delivery:** certify native exports, mobile sensors/safe areas,
   Compatibility rendering, memory/performance, threaded audio on Web, browser
   single-player, Pages artifact contents and production native hosting. Complete

@@ -14,7 +14,7 @@ the other affected lane is idle. Shared publication in A stays single-writer.
 
 | Lane | Tasks | Exclusive Opus files |
 | --- | --- | --- |
-| A — Publication | O25, O26A, O27 | `tools/import_source.mjs`, `tools/world_references.mjs`, other shared `tools/*_references.mjs`, `scripts/content.gd`, `data/` outside SN8's bundles |
+| A — Publication | O25, O26A | `tools/import_source.mjs`, `tools/world_references.mjs`, other shared `tools/*_references.mjs`, `scripts/content.gd`, `data/` outside SN8's bundles |
 | B — Render and numeric contracts | O26B, O3-O5 | `shaders/`, `scripts/source_cel_*.gd`, `scripts/source_outline_*.gd`, `scripts/source_texture_images.gd`, `scripts/source_fixture_sections.gd`, new shared numeric/font adapters, `tools/{outline,cel,texture}_*.mjs` |
 | C — Simulation | O6-O17 | `scripts/simulation.gd`, `scripts/unit.gd`, remaining Opus `scripts/*_rules.gd`, `scripts/*_math.gd` and authority helpers |
 | D — Session and rooms | O18-O22 | `scripts/session.gd`, Opus `scripts/room_*.gd`, `scripts/actor_snapshot.gd`, `scripts/match_recipe.gd`, `scripts/fatal_watchdog.gd` |
@@ -33,22 +33,17 @@ keep the full requests; find them by searching their backlogs for `**Opus`.
   "shared audio provenance/consumer publication", "original presentation pool
   provenance", "shared projectile fixture publication", "current particle
   provenance" and Terra's "spectator, minimap, PiP, scope and dialogue provenance".
+  The current provenance matches `changweilin/steel_vs_swarm` commit `9e9eb0dc`
+  (text inputs differ only by CRLF checkout); its child `634fcf23` deletes eight
+  `models/factions/*.glb` inputs. The complete capture now publishes story,
+  loading and logo art through `tools/native_images.mjs`, recording the loading and
+  logo inputs in provenance; that integrated step has not yet run in a full capture.
 - [ ] **O26 — World contracts:** complete before SN8.
   - **O26A (lane A):** "layered-deck reference provenance", including signed-zero
     preservation in `tools/world_references.mjs`.
   - **O26B (lane B):** "exact native source JSON numbers", "float vertex colors" and
     "cel resource metadata". Add "original sign emission" if the selected baseline
     bundle has active glow.
-- [ ] **O27 — Story media (lane A):** publish `assets/logo_flat.png` and
-  `assets/loading/` from the original checkout through `tools/import_source.mjs`.
-  The offline copier preserves authored bytes and excludes source-editor `.import`
-  descriptors; if they are also JPEG under PNG names, route them through
-  `tools/story_images.mjs` rather than copying. Terra's "story image encoding" and
-  "failed story load guard" are implemented (`data/story_images.json`,
-  `tests/story_images.tscn`); the full importer's integrated story step has not yet
-  run against a source checkout. Focused rerun:
-  `node tools/import_source.mjs <source> --story-images [--playwright-module <path>]`,
-  then `godot --headless --path . --import` and `res://tests/story_images.tscn`.
 
 Remaining inbound requests follow their files: `shaders/` and shared numeric/font
 adapters go to B, simulation and unit contracts to C, session and snapshot

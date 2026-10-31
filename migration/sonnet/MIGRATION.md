@@ -49,20 +49,6 @@ rejects the fog scenes. On Linux run real-renderer checks as
   scaling need Opus before `scripts/civilian_body_builder.gd` changes. (4)
   `burst_suite` cannot run until `assets/bodies/steel_s01.scn` (and the other
   non-kami hero bodies) are published by Models.
-- [ ] **SN7 — Shared fixture corrections:** `tools/fixture_json.mjs::writeSourceFile`
-  gives each invocation a unique temporary identity and removes only files it
-  opened; fixed-clock concurrent writes must not delete a sibling's staging file.
-  `tests/aquatic_render.gd`, `tests/death_render.gd`, `tests/minimap_fog_render.gd`
-  and `tests/splat_render.gd` pass explicit section arrays to
-  `Content.read_json("res://data/fixtures.json", ...)`; record the resulting consumer
-  refresh for O25. `tests/campaign_suite.gd::dialogue_lifecycle` advances a
-  controlled wall clock: an early signal must not advance the line and the deadline
-  advances it once. `tests/death_sequence_suite.gd::run` breaks its lambda cycle
-  without weakening `_lifecycle`. `tests/raster_compare.gd` compares exact bytes,
-  keeping premultiplied semantics. Acceptance: the full text of each request
-  (search "Opus — source publisher temporary ownership", "shared campaign dialogue
-  deadline fixture", "shared death integration fixture cleanup" and "raster
-  comparator byte boundary" in the Sol and Terra backlogs).
 
 ## Generated content
 
@@ -100,6 +86,15 @@ rejects the fog scenes. On Linux run real-renderer checks as
   `scenery_host_retirement` each fail one check, "Current scenery producer:
   data/worlds/berlin_1_autumn.json", a stale world producer hash. It clears with the
   corrected world references and SN8 regeneration.
+
+- **Opus — O25 consumer refresh:** publish `refreshFixtureConsumers` after the
+  edited `tests/{campaign,death_sequence,burst,civilian_body}_suite.gd` are accepted;
+  their registered hashes are stale. Also unresolved on the shared side:
+  `death_sequence_suite` reports 4916 failures (death-camera random order, topple
+  and producer frames) with or without the lambda-cycle fix, and `campaign_suite`
+  reports only the missing story terrain resources. The raster scenes
+  (`aquatic`, `death`, `splat`) mismatch on the software GL renderer and need a
+  real GPU run.
 
 ## Integrated reruns
 

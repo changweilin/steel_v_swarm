@@ -1,4 +1,5 @@
-import {open,rename,rm,writeFile} from 'node:fs/promises';
+import {randomUUID} from 'node:crypto';
+import {open,rename,rm} from 'node:fs/promises';
 import {Readable} from 'node:stream';
 import {pipeline} from 'node:stream/promises';
 import {setTimeout as delay} from 'node:timers/promises';
@@ -15,12 +16,20 @@ async function publishFile(temporary,path) {
 }
 export {publishFile as publishSourceFile};
 
+// Each invocation owns a unique staging path, so a fixed clock cannot make two
+// writers share one and a rejected exclusive open never removes a foreign file.
+function stagingPath(path) {
+  return path+'.partial-'+process.pid+'-'+Date.now()+'-'+randomUUID();
+}
+
 export async function writeSourceFile(path,data) {
   if(typeof path!=='string')throw new TypeError('Expected a source output path');
-  const temporary=path+'.partial-'+process.pid+'-'+Date.now();
+  const temporary=stagingPath(path);
+  const handle=await open(temporary,'wx');
   let encoded=false;
   try {
-    await writeFile(temporary,data,{flag:'wx'});
+    try {await handle.writeFile(data);}
+    finally {await handle.close();}
     encoded=true;
     await publishFile(temporary,path);
   } catch(error) {
@@ -108,7 +117,7 @@ function* fixtureChunks(fixtures) {
 export async function writeFixtureJson(path,fixtures) {
   if(typeof path!=='string'||fixtures===null||typeof fixtures!=='object'||Array.isArray(fixtures)
     ||typeof fixtures.toJSON==='function')throw new TypeError('Expected a fixture file path and plain fixture sections');
-  const temporary=path+'.partial-'+process.pid+'-'+Date.now();
+  const temporary=stagingPath(path);
   const handle=await open(temporary,'wx');
   let encoded=false;
   try {

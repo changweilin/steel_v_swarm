@@ -59,6 +59,9 @@ static func run(h: Node, fixtures: Dictionary) -> void:
 			else:
 				sequence.advance(float(step.delta), surface)
 			_compare(h, sequence, step, calls, queries, int(draws.count))
+		# The output callback captures its own sequence; release the cycle after each case.
+		sequence.output = Callable()
+		sequence.random_sample = Callable()
 	_overlay(h, fixtures)
 	_lifecycle(h)
 

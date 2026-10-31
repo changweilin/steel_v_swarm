@@ -25,11 +25,12 @@ the other affected lane is idle. Shared publication in A stays single-writer.
 O25 and O26 come first: they release SN8, then every populated case. Sol and Terra
 keep the full requests; find them by searching their backlogs for `**Opus`.
 
-- [ ] **O25 — Source identity (lane A):** after SN7, choose one accepted snapshot, then
+- [ ] **O25 — Source identity (lane A):** choose one accepted snapshot, then
   refresh provenance, producer declarations and consumer plans once through
   `tools/import_source.mjs`. Covers original `rng.js`, `pool.js`, `lookPrefs.js`,
-  `movePrefs.js`, `audio_references.mjs`, `projectile_references.mjs` and the SN7
-  consumer changes. Requests: S4's three `rng.js` handoffs, "shared audio fixtures",
+  `movePrefs.js`, `audio_references.mjs` and `projectile_references.mjs`. The
+  Sonnet-edited campaign, death-sequence, burst and civilian-body consumers are
+  already refreshed (hashes only; section plans unchanged). Requests: S4's three `rng.js` handoffs, "shared audio fixtures",
   "shared audio provenance/consumer publication", "original presentation pool
   provenance", "shared projectile fixture publication", "current particle
   provenance" and Terra's "spectator, minimap, PiP, scope and dialogue provenance".

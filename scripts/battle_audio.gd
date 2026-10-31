@@ -201,6 +201,7 @@ func _play(id: String, gain: float, pan: float) -> void:
 	if not _can_play() or voice.disposed or voice.is_queued_for_deletion() or not voice.is_inside_tree():
 		voice.free()
 		return
+	voice.failed.connect(_failure)
 	var error: Error
 	var duration: float
 	if samples.has_sample(id, low_power):

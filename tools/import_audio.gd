@@ -142,7 +142,7 @@ func _retain_resources(catalogue: NativeAudioCatalogue) -> bool:
 	if not previous.valid() or previous.source != catalogue.source:
 		_fail("Samples-only import requires the same complete source catalogue; run the full audio importer")
 		return false
-	if not _resource_cohort(previous):
+	if not _resource_cohort(previous, catalogue):
 		return false
 	catalogue.complete_resources = true
 	catalogue.synthesis_ids = previous.synthesis_ids.duplicate()
@@ -180,7 +180,7 @@ func _publish_catalogue(catalogue: NativeAudioCatalogue, count: int) -> void:
 	print("Imported original audio takes: ", count, " synthesisProbesRemainReferenceOnly=true")
 	get_tree().quit()
 
-func _resource_cohort(catalogue: NativeAudioCatalogue) -> bool:
+func _resource_cohort(catalogue: NativeAudioCatalogue, incoming_samples: NativeAudioCatalogue = null) -> bool:
 	var reader := ResourceSnapshot.new()
 	reader.catalogue = catalogue
 	var noise_hash := ""
@@ -213,7 +213,33 @@ func _resource_cohort(catalogue: NativeAudioCatalogue) -> bool:
 		elif hash != noise_hash or rate != sample_rate:
 			_fail("Mixed original shared noise or context rates: " + key)
 			return false
-	return not noise_hash.is_empty()
+	if noise_hash.is_empty() or not _samples_at_rate(catalogue, sample_rate):
+		return false
+	return incoming_samples == null or _samples_at_rate(incoming_samples, sample_rate)
+
+func _samples_at_rate(catalogue: NativeAudioCatalogue, sample_rate: int) -> bool:
+	if not catalogue.valid():
+		_fail("Invalid native sample cohort index")
+		return false
+	for id: String in catalogue.sample_paths:
+		for index in range(catalogue.sample_paths[id].size()):
+			var path: String = catalogue.sample_paths[id][index]
+			var clip := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE_DEEP) as NativeAudioClip if ResourceLoader.exists(path) else null
+			if not ClipIdentity.matches(clip, id, catalogue.sample_hashes[id][index]):
+				_fail("Missing or invalid native sample cohort resource: " + path)
+				return false
+			var declared: Variant = clip.source.get("sampleRate")
+			if not (declared is int or declared is float) or not is_finite(float(declared)) or float(declared) != sample_rate:
+				_fail("Mixed or missing original sample context rate: " + id)
+				return false
+			var streams: Array[AudioStreamWAV] = clip.panned.duplicate()
+			if clip.centered != null:
+				streams.append(clip.centered)
+			for stream: AudioStreamWAV in streams:
+				if stream.mix_rate != sample_rate:
+					_fail("Mixed native sample PCM context rates: " + id)
+					return false
+	return true
 
 func _movement(provenance: Dictionary, catalogue: NativeAudioCatalogue) -> bool:
 	var data: Dictionary = Content.read_json("res://data/audio_move.json")

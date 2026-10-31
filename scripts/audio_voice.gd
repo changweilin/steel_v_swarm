@@ -4,11 +4,14 @@ extends Node
 const PcmGain = preload("res://scripts/audio_pcm_gain.gd")
 const SampleStream = preload("res://scripts/audio_sample_stream.gd")
 
+signal failed(operation: String, error: Error)
+
 var buses: AudioBuses
 var players: Array[AudioStreamPlayer] = []
 var routes: Array[StringName] = []
 var pending := 0
 var disposed := false
+var sample_mixer: RefCounted
 
 func start(clip: NativeAudioClip, routing: AudioBuses, gain: float, pan: float, rate: float = 1) -> Error:
 	if not players.is_empty() or disposed:
@@ -17,6 +20,12 @@ func start(clip: NativeAudioClip, routing: AudioBuses, gain: float, pan: float, 
 		return ERR_UNCONFIGURED
 	if clip == null or not clip.valid() or not is_finite(gain) or gain < 0 or not is_finite(pan) or not is_finite(rate) or rate <= 0:
 		return ERR_INVALID_PARAMETER
+	if clip.source.get("layer") == "sample":
+		if clip.centered != null or clip.channel_count not in [1, 2]:
+			return ERR_UNAVAILABLE
+		sample_mixer = SampleStream.new()
+		sample_mixer.finished.connect(dispose, CONNECT_DEFERRED)
+		sample_mixer.failed.connect(_sample_failed, CONNECT_DEFERRED)
 	buses = routing
 	buses.retiring.connect(dispose, CONNECT_ONE_SHOT)
 	var matrix: Array[Dictionary] = AudioPan.routes(pan, clip.channel_count) if clip.channel_count > 0 else []
@@ -31,7 +40,7 @@ func start(clip: NativeAudioClip, routing: AudioBuses, gain: float, pan: float, 
 		var normalization := clip.panned_gains[index] if not clip.panned_gains.is_empty() else 1.0
 		var prepared := SampleStream.prepare(clip.panned[index], rate) if clip.source.get("layer") == "sample" \
 			else {"stream": clip.panned[index], "gain": 1.0, "rate": rate}
-		if prepared.is_empty():
+		if prepared.is_empty() or sample_mixer != null and not sample_mixer.append(prepared):
 			dispose()
 			return ERR_UNAVAILABLE
 		if not _player(prepared.stream, bus, gain * float(matrix[index].gain) * normalization * float(prepared.gain), float(prepared.rate)):
@@ -94,13 +103,30 @@ func _play() -> bool:
 	if not _active():
 		dispose()
 		return false
+	if sample_mixer != null:
+		var interval := AudioServer.get_time_to_next_mix() + AudioServer.get_time_since_last_mix()
+		var frames := AudioGeneratorFeed.startup_frames(interval, AudioServer.get_mix_rate())
+		if not sample_mixer.prime(frames) or buses.sample_worker.start() != OK:
+			dispose()
+			return false
 	pending = players.size()
 	# Native WAV starts do not lock the driver; submit all stems in one mix boundary.
 	AudioServer.lock()
+	if sample_mixer != null:
+		sample_mixer.arm(buses.clock_capture, buses.clock_capture.get_pushed_frames() + buses.clock_capture.get_discarded_frames())
 	for player: AudioStreamPlayer in players:
 		player.play()
 	AudioServer.unlock()
+	if sample_mixer != null and not buses.sample_worker.add(sample_mixer):
+		dispose()
+		return false
 	return true
+
+func _sample_failed(operation: String, error: Error) -> void:
+	if disposed:
+		return
+	dispose()
+	failed.emit(operation, error)
 
 func _active() -> bool:
 	if disposed or not is_inside_tree() or is_queued_for_deletion() or not is_instance_valid(buses) or buses.is_queued_for_deletion() or not buses.available():
@@ -140,6 +166,8 @@ func dispose() -> void:
 	if disposed:
 		return
 	disposed = true
+	if sample_mixer != null:
+		sample_mixer.stop()
 	if is_instance_valid(buses) and buses.retiring.is_connected(dispose):
 		buses.retiring.disconnect(dispose)
 	for player: AudioStreamPlayer in players:
@@ -149,6 +177,8 @@ func dispose() -> void:
 
 func _exit_tree() -> void:
 	disposed = true
+	if sample_mixer != null:
+		sample_mixer.stop()
 	if is_instance_valid(buses) and buses.retiring.is_connected(dispose):
 		buses.retiring.disconnect(dispose)
 	for player: AudioStreamPlayer in players:

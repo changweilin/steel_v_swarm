@@ -465,23 +465,37 @@ The wrapper runs capture, source references and native packing sequentially.
   `tests/audio_sample_mix_render.tscn` compares the complete 48,000 Hz corpus
   through WASAPI with an independent PCM timing tracer, never target-signal
   alignment. Its bounds contain measured input PCM conversion, interpolation's
-  L1 gain, an additional private-output half PCM quantum and Float32 mixer error.
-  Keep imported PCM, clip identity and logical duration immutable. Imported
-  sample voices use `scripts/audio_sample_stream.gd` to prepare a private native
-  WAV with source linear interpolation at unity native pitch; generic loop and
-  synthesis callers keep their separate playback contracts. The private PCM
-  reuses `NativeAudioStem.quantize_pcm16`; do not invent a second rounding rule.
-  Keep the 70-frame silent EOF drain after source audio: Godot 4.7.2's server
-  discards its 64-frame lookahead and the resampler's four history/two startup
-  frames at EOF. Requalify this native contract when changing Godot versions.
+  L1 gain and Float32 mixer error. Keep imported PCM, clip identity and logical
+  duration immutable. Imported samples use `scripts/audio_sample_stream.gd` to
+  feed source linear interpolation directly into native Float32 generators;
+  do not requantize the output or scan/convert a complete take on the input frame.
+  Prime only the existing driver-derived startup budget, then let the single
+  context-owned `scripts/audio_sample_worker.gd` service one 128-frame refill
+  per voice per pass at high priority. An empty worker sleeps on a native
+  semaphore until admission or shutdown. Native buses and panners retain their
+  channel/gain contracts; generic loop and synthesis callers remain separate.
+  The independent PCM tracer precedes generator source frames by the known
+  128-frame inactive refill, not a searched waveform offset. Godot 4.7.2's full
+  generator input latency is 194 frames. Requalify it when changing Godot.
+  Finish only after the native context has mixed the complete source body plus
+  that latency. Keep feeding EOF silence until deferred retirement is received,
+  including through UI stalls; stop and join the context worker before releasing
+  native buses. Asynchronous feed failures retire their voice and reach the
+  existing manager failure signal without redrawing or refunding its reservation.
   Reject unsupported sample codecs, loops, stereo stems, incomplete PCM and
   unrepresentable rates explicitly. Keep the native resource-retirement,
   manager-budget and panning checks with this waveform capture.
-  **Still required:** remove whole-sample preparation from the input frame and
-  qualify bounded source-timed admission under simultaneous source voice limits,
-  UI stalls and unchanged reservation/RNG budgets. Full waveform agreement after
-  the timing marker does not qualify input-to-audio latency; private conversion
-  of long takes can still occupy tens of milliseconds before native start.
+  Run this scene with `--stress` and each of `--stress-offset=0`,
+  `--stress-offset=24` and `--stress-offset=48` to cover all captured rate/pan
+  programs under the original 24-voice budget and a 1.2-second
+  UI stall. Compare the complete summed waveform against independently traced
+  source starts and require zero generator skips, immutable inputs and drained
+  mixers/routes. Retain the manager's source selection/budget fixtures plus
+  worker-start/queue rejection and real-underrun failure propagation in
+  `tests/audio_manager_retirement.tscn`. Routing retirement must also join sample
+  and movement workers together in `tests/audio_owner_retirement.tscn`.
+  Full waveform agreement after the timing marker does not qualify physical
+  input-to-device latency, driver suspension or device-rate changes.
   The matching-rate corpus does not qualify other device rates, the legacy
   catalogue's cross-rate decoded samples, physical audible delivery or complete
   music/noise publication. Keep S7 open until these distinct gates pass.
@@ -528,7 +542,17 @@ The wrapper runs capture, source references and native packing sequentially.
   music cohort remains required before switching the runtime catalogue.
   Full publication and samples-only retention must load and verify every
   synthesis/movement/music dependency and reject missing or differing shared
-  noise fingerprints/context rates before changing the catalogue. Oscillator
+  noise fingerprints/context rates before changing the catalogue. Decode every
+  referenced sample through a fresh native load and authenticate its semantic
+  fingerprint; both its numeric `sampleRate` declaration and every PCM stream
+  rate must match that same context. Samples-only retention validates both the
+  previous index's samples and newly imported samples before copying retained
+  resource metadata. A matching original audio-module hash does not make captures
+  at different context rates interchangeable. Keep missing/corrupt clips,
+  missing/string/mismatched rate declarations, actual PCM-rate changes and the
+  real 48,000 Hz source-take collision with the shipped 47,360 Hz cohort in
+  `tests/audio_resource_catalogue.tscn`; every rejection retains the published
+  catalogue and leaves the partial candidate unbound. Oscillator
   period representation rates are independent of the shared noise context.
   Keep this gate in `tools/import_audio.gd` and the mismatched-cohort publication
   cases in `tests/audio_resource_catalogue.tscn`. A consistent declaration alone

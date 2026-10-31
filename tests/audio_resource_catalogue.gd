@@ -2,6 +2,7 @@ extends Node
 
 const Snapshot = preload("res://scripts/audio_resource_snapshot.gd")
 const Identity = preload("res://scripts/audio_resource_identity.gd")
+const ClipIdentity = preload("res://scripts/audio_clip_identity.gd")
 const Publisher = preload("res://tools/source_resource_publisher.gd")
 
 class Reader extends Snapshot:
@@ -132,6 +133,123 @@ func _reject_mixed_cohorts(importer: Importer, catalogue: NativeAudioCatalogue, 
 			_check(await Publisher.publish(catalogue, manifest, get_tree()) == OK, "Restore the accepted test-owned catalogue")
 			published_hash = FileAccess.get_sha256(manifest)
 
+func _with_sample(catalogue: NativeAudioCatalogue, id: String, mode: String) -> NativeAudioCatalogue:
+	var clip := NativeAudioClip.new()
+	clip.source = {"layer": "sample", "id": id, "url": "probe://cohort", "take": 0,
+		"sha256": source_hash, "sampleRate": 48000, "frames": 2, "probe": mode}
+	var wave := _wave(1)
+	wave.loop_mode = AudioStreamWAV.LOOP_DISABLED
+	clip.panned.append(wave)
+	match mode:
+		"context_rate":
+			clip.source.sampleRate = 44100
+			wave.mix_rate = 44100
+		"stream_rate": wave.mix_rate = 44100
+		"declared_rate": clip.source.sampleRate = 44100
+		"missing_rate": clip.source.erase("sampleRate")
+		"string_rate": clip.source.sampleRate = "48000"
+	var hash := ClipIdentity.digest(clip)
+	var path := "res://assets/audio/native/%s_%s.res" % [id, hash]
+	_check(not hash.is_empty() and not FileAccess.file_exists(path), "The sample-cohort probe owns a fresh fingerprint path")
+	if mode != "missing_file":
+		if mode == "altered":
+			wave.data = PackedByteArray([2, 0, 0, 0])
+		owned_paths.append(path)
+		_check(await Publisher.publish(clip, path, get_tree()) == OK, "Stage a controlled sample dependency: " + mode)
+	var candidate := catalogue.duplicate(true) as NativeAudioCatalogue
+	candidate.sample_paths[id] = [path]
+	candidate.sample_hashes[id] = [hash]
+	_check(candidate.valid(), "A sample fingerprint index alone does not prove source context or payload integrity")
+	return candidate
+
+func _reject_mixed_samples(importer: Importer, catalogue: NativeAudioCatalogue, manifest: String, id: String) -> void:
+	var valid := await _with_sample(catalogue, id, "valid")
+	_check(importer._resource_cohort(valid), "Matching sample PCM and declarations share the complete source context")
+	var valid_partial := NativeAudioCatalogue.new()
+	valid_partial.source = valid.source.duplicate(true)
+	valid_partial.sample_paths = valid.sample_paths.duplicate(true)
+	valid_partial.sample_hashes = valid.sample_hashes.duplicate(true)
+	_check(importer._retain_resources(valid_partial) and valid_partial.complete_resources,
+		"Matching incoming samples retain the complete source cohort")
+	for mode: String in ["context_rate", "stream_rate", "declared_rate", "missing_rate", "string_rate", "missing_file", "altered"]:
+		var candidate := await _with_sample(catalogue, id, mode)
+		var published_hash := FileAccess.get_sha256(manifest)
+		await importer._publish_catalogue(candidate, 1)
+		_check(importer.rejections.size() == 1 and FileAccess.get_sha256(manifest) == published_hash,
+			"Reject inconsistent sample publication without replacing the current catalogue: " + mode)
+		importer.rejections.clear()
+		_check(await Publisher.publish(catalogue, manifest, get_tree()) == OK, "Retain the valid source catalogue before incoming-sample validation")
+		var partial := NativeAudioCatalogue.new()
+		partial.source = candidate.source.duplicate(true)
+		partial.sample_paths = candidate.sample_paths.duplicate(true)
+		partial.sample_hashes = candidate.sample_hashes.duplicate(true)
+		published_hash = FileAccess.get_sha256(manifest)
+		_check(not importer._retain_resources(partial) and not partial.complete_resources and partial.resource_paths.is_empty()
+			and importer.rejections.size() == 1 and FileAccess.get_sha256(manifest) == published_hash,
+			"Incoming samples cannot retain an incompatible or unverified cohort: " + mode)
+		importer.rejections.clear()
+		_check(await Publisher.publish(candidate, manifest, get_tree()) == OK, "Inject only the test-owned legacy sample index: " + mode)
+		published_hash = FileAccess.get_sha256(manifest)
+		var retained := NativeAudioCatalogue.new()
+		retained.source = catalogue.source.duplicate(true)
+		_check(not importer._retain_resources(retained) and not retained.complete_resources and retained.resource_paths.is_empty()
+			and importer.rejections.size() == 1 and FileAccess.get_sha256(manifest) == published_hash,
+			"Previously published samples are verified before retaining their resource generation: " + mode)
+		importer.rejections.clear()
+		_check(await Publisher.publish(catalogue, manifest, get_tree()) == OK, "Restore the complete source catalogue after a sample rejection")
+
+func _reject_source_rate_collision(importer: Importer, restore: NativeAudioCatalogue, manifest: String) -> void:
+	var current := ResourceLoader.load(Snapshot.CATALOGUE_PATH, "", ResourceLoader.CACHE_MODE_IGNORE) as NativeAudioCatalogue
+	var archive: Dictionary = Content.read_json("res://data/audio_sample_waveforms/48000.json")
+	var matching_source: bool = current != null and current.valid() \
+		and archive.get("scope") == "original-sample-context-waveforms" and archive.sampleRate == 48000 \
+		and archive.source.audioSha256 == current.source.audioSha256
+	_check(matching_source, "The captured device-rate samples share the shipped original audio module")
+	if not matching_source:
+		return
+	var takes: Array = archive.samples.filter(func(sample): return sample.id == "fire_light_ballistic")
+	_check(takes.size() == 1, "The original device-rate collision probe contains exactly one captured take")
+	if takes.size() != 1:
+		return
+	var captured: Dictionary = takes[0].duplicate(true)
+	var channels: Array[Dictionary] = []
+	for encoded: String in captured.channels:
+		var stem := NativeAudioStem.new()
+		stem.values = Marshalls.base64_to_raw(encoded).to_float32_array()
+		stem.envelope.assign([{"operation": "setValueAtTime", "time": 0.0, "constant": 1.0}])
+		var rendered := stem.render(1, int(captured.sampleRate))
+		_check(not rendered.is_empty(), "Convert the original device-rate channel with the existing PCM factory")
+		if rendered.is_empty():
+			return
+		channels.append({"pcm": Marshalls.raw_to_base64(rendered.stream.data), "gain": rendered.gain})
+	captured.channels = channels
+	var clip := importer._clip(captured.id, captured)
+	# Keep the captured signal and identity fields; isolate ownership of this probe.
+	clip.source.publicationProbe = source_hash
+	var hash := ClipIdentity.digest(clip)
+	var path := "res://assets/audio/native/%s_%s.res" % [captured.id, hash]
+	if not FileAccess.file_exists(path):
+		owned_paths.append(path)
+		_check(await Publisher.publish(clip, path, get_tree()) == OK, "Stage the actual 48,000 Hz source take without changing its legacy counterpart")
+	var candidate := current.duplicate(true) as NativeAudioCatalogue
+	candidate.sample_paths[captured.id] = [path]
+	candidate.sample_hashes[captured.id] = [hash]
+	_check(await Publisher.publish(current, manifest, get_tree()) == OK, "Inspect the shipped source generation through an isolated manifest")
+	var before := FileAccess.get_sha256(manifest)
+	await importer._publish_catalogue(candidate, 7)
+	_check(importer.rejections.size() == 1 and importer.rejections[0].begins_with("Mixed or missing original sample context rate:")
+		and FileAccess.get_sha256(manifest) == before, "The actual 48,000 Hz source capture cannot replace one take in the shipped 47,360 Hz cohort")
+	importer.rejections.clear()
+	var partial := NativeAudioCatalogue.new()
+	partial.source = candidate.source.duplicate(true)
+	partial.sample_paths = candidate.sample_paths.duplicate(true)
+	partial.sample_hashes = candidate.sample_hashes.duplicate(true)
+	_check(not importer._retain_resources(partial) and not partial.complete_resources and partial.resource_paths.is_empty()
+		and importer.rejections.size() == 1 and importer.rejections[0].begins_with("Mixed or missing original sample context rate:")
+		and FileAccess.get_sha256(manifest) == before, "Same-module samples-only import still rejects a different original context rate")
+	importer.rejections.clear()
+	_check(await Publisher.publish(restore, manifest, get_tree()) == OK, "Retain the controlled source generation after the original-capture rejection")
+
 func _run() -> void:
 	var id := "publication_probe_%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()]
 	source_hash = id.sha256_text()
@@ -178,6 +296,8 @@ func _run() -> void:
 	_check(importer._resource_cohort(ResourceLoader.load(Snapshot.CATALOGUE_PATH, "", ResourceLoader.CACHE_MODE_IGNORE)),
 		"The currently shipped original synthesis, movement and music retain one noise/context cohort")
 	await _reject_mixed_cohorts(importer, replacement, manifest, id)
+	await _reject_mixed_samples(importer, replacement, manifest, id + "_sample")
+	await _reject_source_rate_collision(importer, replacement, manifest)
 	var changed := _synthesis(id, 1)
 	changed.stems[0].envelope[0].constant = 1.0000000000000002
 	_check(Identity.digest(changed) != first.resource_hashes["synthesis_" + id], "Synthesis identity retains full-precision envelope coefficients")

@@ -36,6 +36,13 @@ class RejectedManager extends Manager:
 	func _failure(operation: String, error: Error) -> void:
 		rejected.append({"operation": operation, "error": error})
 
+class RefusingSampleWorker extends "res://scripts/audio_sample_worker.gd":
+	var refuse_start := false
+	func start() -> Error:
+		return ERR_CANT_CREATE if refuse_start else super.start()
+	func add(_stream: RefCounted) -> bool:
+		return false
+
 class QueuingRoutes extends AudioBuses:
 	func effect_bus(effects: Array[AudioEffect]) -> StringName:
 		var result := super.effect_bus(effects)
@@ -114,6 +121,7 @@ func _manager(value: Manager = null) -> Manager:
 	pcm.resize(96000)
 	wave.data = pcm
 	var clip := NativeAudioClip.new()
+	clip.source = {"layer": "sample"}
 	clip.panned.append(wave)
 	manager.samples.buffers.ui_click = [clip]
 	manager.samples.loaded = true
@@ -125,6 +133,8 @@ func _normal() -> void:
 	var voice: AudioVoice = manager.get_children().filter(func(child): return child is AudioVoice)[0]
 	_check(voice.players[0].playing and manager.draws == 1 and manager.budget.active == 1,
 		"A live native sample plays, consumes one random draw and reserves one source voice")
+	_check(voice.sample_mixer != null and manager.buses.sample_worker.thread.is_started(),
+		"The native manager admits imported samples through its shared streaming worker")
 	manager._play("ui_click", .5, .25)
 	_check(manager.created == 1 and manager.draws == 1 and manager.budget.active == 1, "Source deduplication precedes allocation and private randomness")
 	var notifications := {"count": 0}
@@ -135,11 +145,47 @@ func _normal() -> void:
 	_check(manager.disposed and not manager.configured and manager.buses.disposed and manager.music.retired
 		and manager.ambience.retired and manager.movement.state.disposed and not voice.players[0].playing,
 		"Terminal manager retirement closes every native consumer and route")
+	_check(not manager.buses.sample_worker.thread.is_started() and voice.sample_mixer.stats().stopped,
+		"Manager retirement joins sample feeding before destroying native routes")
 	var last := manager.budget.last.duplicate()
 	manager._play("late", .5, 0)
 	manager.ui("unknown")
 	_check(manager.created == 1 and manager.draws == 1 and manager.budget.last == last,
 		"Late public and internal playback cannot mutate a retired budget")
+	manager.free()
+
+func _sample_failures() -> void:
+	for refuse_start: bool in [true, false]:
+		var manager := _manager(RejectedManager.new()) as RejectedManager
+		var worker := RefusingSampleWorker.new()
+		worker.refuse_start = refuse_start
+		manager.buses.sample_worker = worker
+		manager._play("ui_click", .5, 0)
+		_check(manager.draws == 1 and manager.budget.active == 0 and worker.count() == 0,
+			"Failed sample worker admission retains the consumed source draw without reserving a voice")
+		_check(manager.rejected == [{"operation": "start_voice", "error": ERR_UNCONFIGURED}]
+			and manager.get_children().all(func(child): return not child is AudioVoice),
+			"Worker startup and queue rejection retire every partially admitted native player")
+		manager.free()
+		_check(not worker.thread.is_started(), "Rejected sample contexts cannot retain idle worker threads")
+	var manager := _manager(RejectedManager.new()) as RejectedManager
+	manager._play("ui_click", .5, 0)
+	var voice: AudioVoice = manager.get_children().filter(func(child): return child is AudioVoice)[0]
+	var mixer: RefCounted = voice.sample_mixer
+	# Deliberately stop only the producer. Native playback must expose a real
+	# underrun and propagate it through the normal deferred owner failure path.
+	manager.buses.sample_worker.stop()
+	var deadline := Time.get_ticks_msec() + 3000
+	while mixer.stats().skips.all(func(value): return value == 0) and Time.get_ticks_msec() < deadline:
+		await get_tree().create_timer(.02, true, false, true).timeout
+	_check(mixer.stats().skips.any(func(value): return value > 0), "The fault program reaches a real native generator underrun: " + JSON.stringify(mixer.stats()))
+	_check(mixer.pump() == -1, "A starved sample rejects further producer work")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(not is_instance_valid(voice) and manager.rejected == [{"operation": "sample_buffer_underrun", "error": ERR_CANT_CREATE}],
+		"Asynchronous sample failure retires the voice and reaches the manager exactly once")
+	_check(manager.draws == 1 and manager.budget.active == 1,
+		"Native playback failure cannot refund or redraw the original source reservation")
 	manager.free()
 
 func _queued() -> void:
@@ -346,6 +392,7 @@ func _run() -> void:
 	_source_programs()
 	if failures.is_empty():
 		_normal()
+		await _sample_failures()
 		_queued()
 		_admissions()
 		_player_admissions()

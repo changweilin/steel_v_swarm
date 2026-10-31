@@ -14,7 +14,7 @@ the other affected lane is idle. Shared publication in A stays single-writer.
 
 | Lane | Tasks | Exclusive Opus files |
 | --- | --- | --- |
-| A — Publication | O25, O26A | `tools/import_source.mjs`, `tools/world_references.mjs`, other shared `tools/*_references.mjs`, `scripts/content.gd`, `data/` outside SN8's bundles |
+| A — Publication | O26A | `tools/import_source.mjs`, `tools/world_references.mjs`, other shared `tools/*_references.mjs`, `scripts/content.gd`, `data/` outside SN8's bundles |
 | B — Render and numeric contracts | O26B, O3-O5 | `shaders/`, `scripts/source_cel_*.gd`, `scripts/source_outline_*.gd`, `scripts/source_texture_images.gd`, `scripts/source_fixture_sections.gd`, new shared numeric/font adapters, `tools/{outline,cel,texture}_*.mjs` |
 | C — Simulation | O6-O17 | `scripts/simulation.gd`, `scripts/unit.gd`, remaining Opus `scripts/*_rules.gd`, `scripts/*_math.gd` and authority helpers |
 | D — Session and rooms | O18-O22 | `scripts/session.gd`, Opus `scripts/room_*.gd`, `scripts/actor_snapshot.gd`, `scripts/match_recipe.gd`, `scripts/fatal_watchdog.gd` |
@@ -22,34 +22,44 @@ the other affected lane is idle. Shared publication in A stays single-writer.
 
 ## Unblocking order
 
-O25 and O26 come first: they release SN8, then every populated case. Sol and Terra
-keep the full requests; find them by searching their backlogs for `**Opus`.
+O26 comes first: it releases SN8, then every populated case. Sol and Terra keep
+the full requests; find them by searching their backlogs for `**Opus`.
 
-- [ ] **O25 — Source identity (lane A):** choose one accepted snapshot, then
-  refresh provenance, producer declarations and consumer plans once through
-  `tools/import_source.mjs`. Covers original `rng.js`, `pool.js`, `lookPrefs.js`,
-  `movePrefs.js`, `audio_references.mjs` and `projectile_references.mjs`. The
-  Sonnet-edited campaign, death-sequence, burst and civilian-body consumers are
-  already refreshed (hashes only; section plans unchanged). Requests: S4's three `rng.js` handoffs, "shared audio fixtures",
-  "shared audio provenance/consumer publication", "original presentation pool
-  provenance", "shared projectile fixture publication", "current particle
-  provenance" and Terra's "spectator, minimap, PiP, scope and dialogue provenance".
-  The current provenance matches `changweilin/steel_vs_swarm` commit `9e9eb0dc`
-  (text inputs differ only by CRLF checkout); its child `634fcf23` deletes eight
-  `models/factions/*.glb` inputs. The complete capture now publishes story,
-  loading and logo art through `tools/native_images.mjs`, recording the loading and
-  logo inputs in provenance; that integrated step has not yet run in a full capture.
+The accepted source snapshot is `changweilin/steel_vs_swarm` `634fcf23`, read
+from its checkout: `data/provenance.json` pins those exact bytes, including their
+line endings. Its deleted faction GLBs have no source consumer and were already
+removed from the port. Point `SVS_SOURCE` at that checkout; a commit-exact export
+has different line endings and fails the hash check.
+
+Each complete capture redraws the source's unseeded `Math.random` content (audio
+noise, animation phases, procedural textures) and the browser's rasters and
+decoded PCM. Republishing therefore invalidates native resources derived from
+those files, so publish a complete capture only for a source or producer change.
+
+Requests from the published capture:
+
+- **Sol — native audio catalogue:** rerun the audio importers against the
+  published `data/audio_{clips,synth,move}.json`. Their noise realization and
+  Chromium 151 PCM no longer match the catalogue. Acceptance: `audio_suite` returns
+  to its one known `_buses` failure (`tests/audio_clip_suite.gd:30` adds 152 more)
+  and `tests/audio_lifecycle.tscn` clears its 6 movement noise/oscillator failures.
+- **Lane B — scope backdrop:** the source ring colour is published. All nine
+  `tests/scope_raster.tscn` failures (cases 3-5 per viewport, maximum 40/255) remain
+  for the "source scope backdrop composition" request in `shaders/scope_mask.gdshader`.
+
 - [ ] **O26 — World contracts:** complete before SN8.
-  - **O26A (lane A):** "layered-deck reference provenance". The producer side is in
-    `tools/world_references.mjs` (`tests/world_references.test.mjs`): one bundle
-    per run, sealed provenance and the captured `public/js/biomes.js` hash are
-    required, input or bundle drift during generation rejects unchanged, and
-    publication goes through `publishWorldCapture`. Real `berlin_1_winter` and
-    `berlin_1_spring` round-trip byte-identically through that writer with all 99
-    negative zeros. Open: a run against the original snapshot for the selected
-    bundle (not yet executed), then the SN8/Sol consumer handoff. `tools/import_worlds.gd` must
-    reject a bundle unless `deckReferences.sourceFingerprint` equals
-    `source.fingerprint` and `deckReferences.inputs["public/js/biomes.js"]` equals
+  - **O26A (lane A):** "layered-deck reference provenance". The producer is
+    finished: `tools/world_references.mjs` on a real `berlin_1_autumn` copy, with
+    its captured inputs restored, changes only `collision.deckEndTolerance`,
+    `deckProbes` and `deckReferences` and keeps all 99 negative zeros. Remaining is
+    the SN8/Sol handoff. Every bundle pins an older `public/js/charPreview.js`
+    than the accepted snapshot (`20051639` or `41be0416`), and current tools change
+    the generator fingerprints, so `bake_worlds.mjs --reuse` cannot qualify them:
+    each selected bundle needs a full recapture through `tools/migrate_worlds.ps1`,
+    which already runs the reference step. Do not replace the declared hashes.
+    `tools/import_worlds.gd` must reject a bundle unless
+    `deckReferences.sourceFingerprint` equals `source.fingerprint` and
+    `deckReferences.inputs["public/js/biomes.js"]` equals
     `source.inputs["public/js/biomes.js"]`. Acceptance: `tests/worlds.tscn --
     --bundle=<bundle>` accepts the regenerated bundle and rejects a copy with
     either field altered.
@@ -250,10 +260,7 @@ contracts to D, and `scripts/main.gd` or `project.godot` contracts to E.
   calling a path verified. Current `tests/run.tscn` cannot complete cleanly with
   failed world setup and owner-specific geometry/audio/scenery differences;
   engine errors remain failed acceptance even when a component's assertions pass.
-  The current checkout has CRLF/LF byte drift in unchanged pinned fixture
-  consumers. Preserve canonical Git bytes when publishing their plan; each owner
-  must restore its captured source bytes before a clean local whole-suite rerun.
-  Never normalize bytes inside the runtime hash check to hide this mismatch.
+  Never normalize bytes inside the runtime hash check to hide a consumer mismatch.
   Native fixture consumers must use the generated
   section plan and exact numeric tapes, preserving source order and tolerances.
   Populated core fixtures in `tests/run.gd` and layered blast/bridge/tunnel cases

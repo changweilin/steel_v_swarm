@@ -16,6 +16,7 @@ try {
             $queueArguments = @('--headless', '--path', $projectRoot, $isolatedScene, '--', "--port=$listenPort")
             if ($mode -eq 'websocket') { $queueArguments += '--websocket' }
             $queue = Start-Process -FilePath $Godot -ArgumentList $queueArguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$projectRoot/tests/$mode-$isolatedName.log" -RedirectStandardError "$projectRoot/tests/$mode-$isolatedName-errors.log"
+            $null = $queue.Handle
             $processes += $queue
             $isolatedTimeout = if ($SnapshotEvents) { 90000 } else { 40000 }
             if (-not $queue.WaitForExit($isolatedTimeout)) { throw "$mode $isolatedName test timed out" }
@@ -66,6 +67,7 @@ try {
         $serverArguments += @('--view', $(if ($Tps) { 'tps' } else { 'fpv' }))
         if ($mode -eq 'websocket') { $serverArguments += '--websocket' }
         $server = Start-Process -FilePath $Godot -ArgumentList $serverArguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$projectRoot/tests/$mode-server.log" -RedirectStandardError "$projectRoot/tests/$mode-server-errors.log"
+        $null = $server.Handle
         $processes += $server
         if ($QuickRestart) {
             $quickDeadline = [DateTime]::UtcNow.AddSeconds(45)
@@ -124,6 +126,7 @@ try {
             $recoveryStores += Join-Path $projectRoot "tests/$mode-recovery-$recoveryRunId.cfg"
             $clientArguments += @('--session-store', $storeResource)
             $firstClient = Start-Process -FilePath $Godot -ArgumentList $clientArguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$projectRoot/tests/$mode-recovery-first.log" -RedirectStandardError "$projectRoot/tests/$mode-recovery-first-errors.log"
+            $null = $firstClient.Handle
             $processes += $firstClient
             if (-not $firstClient.WaitForExit(30000)) { throw "$mode initial recovery client timed out" }
             $firstLog = Get-Content -LiteralPath "$projectRoot/tests/$mode-recovery-first.log" -Raw
@@ -141,6 +144,7 @@ try {
             $clientArguments = @('--headless', '--path', $projectRoot, 'res://tests/room_recovery_network.tscn', '--', '--resume', '--session-store', $storeResource)
         }
         $client = Start-Process -FilePath $Godot -ArgumentList $clientArguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$projectRoot/tests/$mode-client.log" -RedirectStandardError "$projectRoot/tests/$mode-client-errors.log"
+        $null = $client.Handle
         $processes += $client
         if ($LateSpectators) {
             $lateDeadline = [DateTime]::UtcNow.AddSeconds(20)
@@ -156,6 +160,7 @@ try {
             $observerArguments = @('--headless', '--path', $projectRoot, 'res://tests/spectator_network.tscn', '--', '--connect', $target, '--port', $listenPort, '--character', 's01', '--side', 'SWARM', '--observer', '--ready-start')
             if ($LateSpectators) { $observerArguments += @('--spectator', '--late') }
             $observer = Start-Process -FilePath $Godot -ArgumentList $observerArguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$projectRoot/tests/$mode-observer.log" -RedirectStandardError "$projectRoot/tests/$mode-observer-errors.log"
+            $null = $observer.Handle
             $processes += $observer
         }
         if (-not $client.WaitForExit($(if ($Rematch) { 40000 } elseif ($Recovery -or $QuickRestart) { 35000 } else { 60000 }))) { throw "$mode connection test timed out" }

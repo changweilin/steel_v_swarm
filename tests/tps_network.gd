@@ -20,7 +20,8 @@ func _ready() -> void:
 	network_test = false
 
 func _physics_process(delta: float) -> void:
-	elapsed += delta
+	if Session.launch_announced:
+		elapsed += delta
 	if elapsed > 18:
 		_fail("NETWORK_TPS_TIMEOUT phase=%d approved=%d" % [phase, approved])
 		return
@@ -133,7 +134,7 @@ func _server_step(delta: float) -> void:
 			return
 		# Only the immediate channel may supply this fire notification.
 		simulation.events.erase(event)
-		_expect_shot.rpc_id(fixture_pilot.peer_id, int(event.serial), event.muzzle)
+		_expect_shot.rpc_id(Session.seats.transport_for(fixture_pilot.peer_id), int(event.serial), event.muzzle)
 		_approve(3)
 
 func _resources() -> Array:
@@ -156,13 +157,13 @@ func _body_event_feedback(event: Dictionary) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _checkpoint(stage: int) -> void:
-	if Session.dedicated and fixture_pilot != null and multiplayer.get_remote_sender_id() == fixture_pilot.peer_id and stage == approved + 1:
+	if Session.dedicated and fixture_pilot != null and Session.seats.player_for(multiplayer.get_remote_sender_id()) == fixture_pilot.peer_id and stage == approved + 1:
 		pending_checkpoint = stage
 
 func _approve(stage: int) -> void:
 	approved = stage
 	pending_checkpoint = 0
-	_accept_checkpoint.rpc_id(fixture_pilot.peer_id, stage)
+	_accept_checkpoint.rpc_id(Session.seats.transport_for(fixture_pilot.peer_id), stage)
 
 @rpc("authority", "call_remote", "reliable")
 func _accept_checkpoint(stage: int) -> void:

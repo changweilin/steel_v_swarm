@@ -45,6 +45,23 @@ publication. Each seals its
 producer, rechecks all published original input
 hashes and rejects a changed destination without replacing unrelated sections.
 
+Story, loading and logo art (`tools/native_images.mjs`) publishes original PNGs
+verbatim and decodes JPEG-under-PNG originals in Chromium into lossless PNGs at
+their authored paths. The focused run first verifies every provenance input
+against the source snapshot:
+
+```powershell
+node tools/import_source.mjs C:/path/to/steel_vs_swarm --native-images
+godot --headless --path . --import
+godot --headless --path . res://tests/native_images.tscn
+```
+
+It accepts the same `--playwright-module`/`--chrome` overrides as below. Godot
+never retries an image whose `.import` records `valid=false`; after republishing,
+remove only that stale marker and let `--import` regenerate the descriptor.
+`assets/logo_flat.png` imports with `fix_alpha_border=false` so faint alpha edges
+keep their original colour.
+
 For the isolated procedural-envelope source comparison:
 
 ```powershell

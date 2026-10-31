@@ -9,7 +9,8 @@ var ground_seen := false
 var air_seen := false
 
 func _physics_process(delta: float) -> void:
-	elapsed += delta
+	if Session.launch_announced:
+		elapsed += delta
 	if elapsed > 16:
 		push_error("NETWORK_CAMERA_TIMEOUT")
 		get_tree().quit(1)

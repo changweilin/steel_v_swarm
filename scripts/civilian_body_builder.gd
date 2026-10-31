@@ -44,6 +44,7 @@ static func configure(body: BodyRig, seed_value: int, profession: int, side: Str
 			continue
 		for mount: String in ["hips", "head"]:
 			for child: Node3D in part.bindings[mount].get_children():
+				_disown(child)
 				child.reparent(rig[mount], false)
 		part.root.free()
 	_register(body, body.source_root)
@@ -158,3 +159,9 @@ static func _bounds(root: Node3D, frame: Node3D = null) -> AABB:
 		initialized = true
 	assert(initialized, "Original civilian must contain measurable geometry")
 	return result
+
+# Template nodes keep their packed-scene owner, which is freed with the part root.
+static func _disown(node: Node) -> void:
+	node.owner = null
+	for child: Node in node.get_children():
+		_disown(child)

@@ -11,7 +11,8 @@ var normal_seen := false
 var shop_checked := false
 
 func _physics_process(delta: float) -> void:
-	elapsed += delta
+	if Session.launch_announced:
+		elapsed += delta
 	if elapsed > 16:
 		push_error("NETWORK_FOOTPRINT_TIMEOUT warning=%s normal=%s shop=%s" % [warning_seen, normal_seen, shop_checked])
 		get_tree().quit(1)

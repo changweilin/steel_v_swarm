@@ -13,7 +13,8 @@ var cleared := false
 var previous_positions: Dictionary = {}
 
 func _physics_process(delta: float) -> void:
-	elapsed += delta
+	if Session.launch_announced:
+		elapsed += delta
 	if elapsed > 16:
 		push_error("NETWORK_PROJECTILE_VISUAL_TIMEOUT light=%s heavy=%s moving=%s echo=%s clear=%s" % [light_seen, heavy_seen, moving_seen, echo_seen, clearing_seen])
 		get_tree().quit(1)

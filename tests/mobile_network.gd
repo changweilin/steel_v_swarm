@@ -17,7 +17,8 @@ func _ready() -> void:
 	network_test = false
 
 func _physics_process(delta: float) -> void:
-	elapsed += delta
+	if Session.launch_announced:
+		elapsed += delta
 	if elapsed > 18:
 		push_error("NETWORK_MOBILE_TIMEOUT phase=%d forced=%s released=%s free=%s" % [phase, forced_seen, released_seen, free_seen])
 		get_tree().quit(1)
@@ -97,7 +98,7 @@ func _server_step() -> void:
 		Session._settle_control_mode("pad")
 	elif phase == 3 and input.get("fire", false):
 		phase = 4
-		_mark_input_received.rpc_id(fixture_pilot.peer_id)
+		_mark_input_received.rpc_id(Session.seats.transport_for(fixture_pilot.peer_id))
 	elif phase == 4 and not input.get("fire", true) and not input.get("jump_held", true):
 		phase = 5
 		Session._settle_control_mode("any")

@@ -3,11 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dcvqn1bib3848"
-valid=false
+path="res://.godot/imported/story_prologue_01_scholar.png-f796dac464429335636c2e0e2906ac83.ctex"
+metadata={
+"vram_texture": false
+}
 
 [deps]
 
 source_file="res://assets/story/story_prologue_01_scholar.png"
+dest_files=["res://.godot/imported/story_prologue_01_scholar.png-f796dac464429335636c2e0e2906ac83.ctex"]
 
 [params]
 

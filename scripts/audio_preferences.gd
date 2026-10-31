@@ -91,9 +91,24 @@ func load_save() -> Error:
 	if not persist:
 		return OK
 	var file := ConfigFile.new()
-	var error := file.load(save_path)
+	var error := OK
+	if not FileAccess.file_exists(save_path):
+		error = ERR_FILE_NOT_FOUND
+	else:
+		var text := FileAccess.get_file_as_string(save_path)
+		error = FileAccess.get_open_error()
+		if error == OK:
+			error = file.parse(text) if _sections_closed(text) else ERR_PARSE_ERROR
 	if error != OK:
 		configure(rules)
 		return OK if error == ERR_FILE_NOT_FOUND else error
 	configure(rules, file.get_value("audio", "values", {}))
 	return OK
+
+# ConfigFile.parse pushes an engine error for an unterminated section header.
+static func _sections_closed(text: String) -> bool:
+	for line: String in text.split("\n"):
+		var trimmed := line.strip_edges()
+		if trimmed.begins_with("[") and not trimmed.ends_with("]"):
+			return false
+	return true

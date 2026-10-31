@@ -624,7 +624,7 @@ godot --path . res://tools/import_cockpits.tscn -- --npc-effects
 godot --path . res://tools/import_cockpits.tscn -- --weapon-effects
 godot --path . res://tools/import_cockpits.tscn -- --first-person-shields
 node tools/bake_worlds.mjs --reuse
-node tools/world_references.mjs
+node tools/world_references.mjs <bundle>
 godot --path . res://tools/import_worlds.tscn
 ```
 
@@ -687,7 +687,9 @@ Individual completed captures can also be processed with
 `node tools/world_references.mjs berlin_1_spring` and then
 `godot --path . res://tools/import_worlds.tscn -- --bundle=berlin_1_spring`.
 Run the reference step before native packing; it supplies the original deck query
-endpoint tolerance and probe results. Bundle selection validates against the
+endpoint tolerance and probe results. It processes exactly one bundle, executes
+only the captured `biomes.js` bytes, records them with the extraction helper hash
+in `deckReferences`, and leaves the bundle unchanged on any source drift. Bundle selection validates against the
 same required manifest; the normal full import still rejects missing worlds.
 The baker runs the original terrain and complete biome constructor offline, resamples
 verified raw elevation tiles into the current battlefield frame, and rejects

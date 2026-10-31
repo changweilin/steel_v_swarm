@@ -39,8 +39,19 @@ keep the full requests; find them by searching their backlogs for `**Opus`.
   loading and logo art through `tools/native_images.mjs`, recording the loading and
   logo inputs in provenance; that integrated step has not yet run in a full capture.
 - [ ] **O26 — World contracts:** complete before SN8.
-  - **O26A (lane A):** "layered-deck reference provenance", including signed-zero
-    preservation in `tools/world_references.mjs`.
+  - **O26A (lane A):** "layered-deck reference provenance". The producer side is in
+    `tools/world_references.mjs` (`tests/world_references.test.mjs`): one bundle
+    per run, sealed provenance and the captured `public/js/biomes.js` hash are
+    required, input or bundle drift during generation rejects unchanged, and
+    publication goes through `publishWorldCapture`. Real `berlin_1_winter` and
+    `berlin_1_spring` round-trip byte-identically through that writer with all 99
+    negative zeros. Open: a run against the original snapshot for the selected
+    bundle (not yet executed), then the SN8/Sol consumer handoff. `tools/import_worlds.gd` must
+    reject a bundle unless `deckReferences.sourceFingerprint` equals
+    `source.fingerprint` and `deckReferences.inputs["public/js/biomes.js"]` equals
+    `source.inputs["public/js/biomes.js"]`. Acceptance: `tests/worlds.tscn --
+    --bundle=<bundle>` accepts the regenerated bundle and rejects a copy with
+    either field altered.
   - **O26B (lane B):** "exact native source JSON numbers", "float vertex colors" and
     "cel resource metadata". Add "original sign emission" if the selected baseline
     bundle has active glow.

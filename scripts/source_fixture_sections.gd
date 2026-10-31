@@ -69,15 +69,39 @@ static func load_part(registry: Dictionary, base: String, key: String, index: in
 		if numbers.size() != int(numeric.get("bytes", -1)) or numbers.size() != int(numeric.get("count", -1)) * 8:
 			_fail("Original numeric fixture partition length mismatch: " + numeric_path)
 			return null
-		var cursor := [0]
-		value = _restore_numbers(value, numbers, cursor)
-		if cursor[0] != numbers.size():
-			_fail("Original numeric fixture partition was not fully consumed: " + numeric_path)
+		var restored := restore_numbers(value, numbers)
+		if not restored.ok:
+			_fail(str(restored.error) + ": " + numeric_path)
 			return null
+		value = restored.value
 	if section.kind == "array" and (not value is Array or value.size() != int(part.count)):
 		_fail("Original fixture partition row count mismatch: " + path)
 		return null
 	return value
+
+# Godot's decimal parser can round a captured double, so number leaves take their
+# words from the float64 tape in JSON order. Callers validate storage first.
+# A rejected tape leaves the captured tree unchanged.
+static func restore_numbers(value: Variant, numbers: PackedByteArray) -> Dictionary:
+	var count := _count_numbers(value)
+	if count < 0:
+		return {"ok": false, "error": "Captured value tree holds a non-JSON value"}
+	if numbers.size() != count * 8:
+		return {"ok": false, "error": "Numeric tape does not hold exactly one float64 word per captured number"}
+	return {"ok": true, "value": _restore_numbers(value, numbers, [0])}
+
+static func _count_numbers(value: Variant) -> int:
+	if value is Dictionary or value is Array:
+		var count := 0
+		for item: Variant in (value.values() if value is Dictionary else value):
+			var nested := _count_numbers(item)
+			if nested < 0:
+				return -1
+			count += nested
+		return count
+	if value is float or value is int:
+		return 1
+	return 0 if value == null or value is bool or value is String else -1
 
 static func _restore_numbers(value: Variant, numbers: PackedByteArray, cursor: Array) -> Variant:
 	if value is Dictionary:
@@ -87,9 +111,6 @@ static func _restore_numbers(value: Variant, numbers: PackedByteArray, cursor: A
 		for index in value.size():
 			value[index] = _restore_numbers(value[index], numbers, cursor)
 	elif value is float or value is int:
-		if int(cursor[0]) + 8 > numbers.size():
-			_fail("Original numeric fixture partition ended before its value tree")
-			return value
 		value = numbers.decode_double(int(cursor[0]))
 		cursor[0] += 8
 	return value

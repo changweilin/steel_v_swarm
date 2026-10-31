@@ -43,9 +43,14 @@ Requests from the published capture:
   Chromium 151 PCM no longer match the catalogue. Acceptance: `audio_suite` returns
   to its one known `_buses` failure (`tests/audio_clip_suite.gd:30` adds 152 more)
   and `tests/audio_lifecycle.tscn` clears its 6 movement noise/oscillator failures.
-- **Lane B — scope backdrop:** the source ring colour is published. All nine
-  `tests/scope_raster.tscn` failures (cases 3-5 per viewport, maximum 40/255) remain
-  for the "source scope backdrop composition" request in `shaders/scope_mask.gdshader`.
+- **Lane B — scope backdrop:** `shaders/scope_mask.gdshader` now blurs the composited
+  scope layer with the browser's Skia structure (Gaussian to sigma 4, half-resolution
+  above it, mirrored edges) and applies opacity to the blur and gradient as one group.
+  `tests/scope_raster.tscn` retains 2 failures: case 4 (1 pixel) and case 10 (2 pixels)
+  are 3/255 over two bytes at fire 0.35, weather 0.7. RGBA8 rounding after the fire
+  layer or the horizontal pass does not explain them. A single pass costs up to 625
+  samples per pixel at sigma 4 while fire fog shows, so `scripts/scope_overlay.gd`
+  needs separate horizontal and vertical passes before Web and mobile delivery (O24).
 
 - [ ] **O26 — World contracts:** complete before SN8.
   - **O26A (lane A):** "layered-deck reference provenance". The producer is
@@ -63,9 +68,36 @@ Requests from the published capture:
     `source.inputs["public/js/biomes.js"]`. Acceptance: `tests/worlds.tscn --
     --bundle=<bundle>` accepts the regenerated bundle and rejects a copy with
     either field altered.
-  - **O26B (lane B):** "exact native source JSON numbers", "float vertex colors" and
-    "cel resource metadata". Add "original sign emission" if the selected baseline
-    bundle has active glow.
+  - **O26B accepted; SN8/Sol binds it in `tools/source_world_meshes.gd`,
+    `tools/import_worlds.gd` and `tests/worlds.gd`:**
+    - Numbers: `SourceFixtureSections.restore_numbers(tree, float64_bytes)` returns
+      `{ok, value}` or `{ok: false, error}`, leaving a rejected tree unchanged. Inline
+      values need a published tape restored before `_decode`. `tests/numeric_tape.tscn`
+      guards it. `tests/source_json.gd` must assert the restored value: bare
+      `JSON.parse_string` still rounds 1,884 of the fixture's 13,280 words.
+    - Colours: for each surface with `vertexColors`, store
+      `SourceCelVertexColors.encode(colors, colorSize, vertices).value` in
+      `SourceCelVertexColors.ARRAY_SLOT` with `FORMAT` in the surface flags, instead of
+      `ARRAY_COLOR`, and use `SourceCelVertexColors.material(base)`. Instance-tinted
+      surfaces without vertex colours use `material(base, false)`. `tests/worlds.gd`
+      compares that attribute byte-for-byte; remove the importer rejection and the
+      1/255 tolerance. Each vertex grows from 4 to 16 colour bytes. These are
+      `ShaderMaterial`s, so `albedo_color` consumers must use the `uSourceAlbedo`
+      parameter: `scripts/scene_damage_geometry.gd` skips its tint copy, while the
+      `waterfall_sheet` path in `scripts/scenery_motion.gd` and the typed reads in
+      `scripts/fire_presentation.gd` and `scripts/mine_presentation.gd` fail. Bind or
+      keep those surfaces out of this path before enabling it. The request's "both
+      quality modes" has no port or source counterpart; Compatibility is the only
+      renderer. `tests/cel_vertex_colors.tscn` needs a rendered session and passes
+      source rasters from `tools/cel_vertex_color_capture.mjs`, not cel shading (O3).
+      Negative lit albedo stays unrepresentable because the renderer's decode has no
+      real inverse below zero; Berlin autumn and spring have no negative colours.
+    - Cel metadata needs no code change: all 232,025 `berlin_1_autumn` declarations
+      survive native reload. `assets/worlds/berlin_1_autumn.res` predates its
+      recapture, so its `tests/worlds.tscn` run also fails vertices and winding;
+      acceptance follows SN8 regeneration.
+    - "original sign emission" stays open for bundles with active glow; Berlin autumn
+      and spring have none, and the importer rejects any that appears.
 
 Remaining inbound requests follow their files: `shaders/` and shared numeric/font
 adapters go to B, simulation and unit contracts to C, session and snapshot
@@ -93,6 +125,11 @@ contracts to D, and `scripts/main.gd` or `project.godot` contracts to E.
   explicit null versus undefined, matrix fourth rows and source integer/bool
   coercion. Streaming resolution, virtual pages and demand/eviction lifecycle
   remain unimplemented. Use actual source GPU readback where CPU UV rules differ.
+  Compatibility treats `ALBEDO` as sRGB: `StandardMaterial3D` multiplies albedo,
+  texture and vertex colour in encoded space, decodes with a cubic and presents with
+  a toeless power curve, so unlit byte 16 outputs 11 and bytes up to 7 output 0.
+  Only `shaders/source_vertex_color.gdshader.template` corrects this. Every other
+  source material keeps the error, and lit output keeps the curve's dark toe.
 
 ## Coupled simulation semantics
 

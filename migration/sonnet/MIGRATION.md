@@ -100,7 +100,7 @@ rejects the fog scenes. On Linux run real-renderer checks as
 
 ## Integrated reruns
 
-- [ ] **SN9 — Rerun and report:** after SN8, run the changed network clocks (parse-checked only so far), then
+- [ ] **SN9 — Rerun and report:** after SN8, run the changed `*_network.gd` clocks (body, burst, camera, cockpit, death, footprint, mobile, projectile-visual, TPS and view; they count from `Session.launch_announced` and compare seats through `player_for`/`transport_for`; parse-checked only so far), then
   the root suite, smoke and affected transports, one switch per run. Record each
   failure as an exact Opus request; do not fix authority or lifecycle code.
   - `-Bots` on both transports: `tests/bot_network.gd` now starts mid-lane with the

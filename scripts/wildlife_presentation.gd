@@ -103,7 +103,7 @@ func configure(root: Node3D, source: Dictionary, low: bool, height: Callable, gr
 			if node == null or node.multimesh == null or (densities.is_empty() and node.multimesh.instance_count != batch.animals.size()):
 				push_error("Missing original wildlife body/joint MultiMesh")
 				return false
-			node.multimesh = MultiMeshCopy.duplicate_of(node.multimesh)
+			node.multimesh = MultiMeshCopy.of(node.multimesh)
 			if not _current(token):
 				return false
 			if not densities.is_empty():

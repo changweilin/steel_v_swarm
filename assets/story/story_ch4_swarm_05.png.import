@@ -3,11 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dgat8ubhn0gj6"
-valid=false
+path="res://.godot/imported/story_ch4_swarm_05.png-70432250f6683f255c00e85a92420282.ctex"
+metadata={
+"vram_texture": false
+}
 
 [deps]
 
 source_file="res://assets/story/story_ch4_swarm_05.png"
+dest_files=["res://.godot/imported/story_ch4_swarm_05.png-70432250f6683f255c00e85a92420282.ctex"]
 
 [params]
 

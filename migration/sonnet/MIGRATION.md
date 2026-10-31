@@ -1,7 +1,7 @@
 # Opus-unblocking fixes — outstanding work
 
 Read [AGENTS.md](AGENTS.md). Select one task; its exclusive files are in the root
-lease table. SN1, SN2, SN4-SN7 can run concurrently. SN8 waits for Opus O25/O26 and SN7.
+lease table. SN4 and SN6 are blocked as recorded. SN8 waits for Opus O25/O26.
 SN9 runs last. Each task records only its current failure.
 
 Local tools: process-local `SVS_SOURCE=C:/Users/user/Documents/app/steel_vs_swarm`,
@@ -11,35 +11,12 @@ and Godot at
 
 Isolate one suite with
 `godot --headless --path . res://tests/run.tscn -- --fixture-suite=tests/<suite>.gd`.
-`--headless` uses the dummy renderer, which keeps no `MultiMesh` buffer. Suites that
-read instance transforms need a real driver, for example
-`xvfb-run -a godot --path . --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy --resolution 320x240 res://tests/run.tscn -- --fixture-suite=...`.
-A suite whose source changes needs the consumer plan refreshed before the runner and
-`tools/check_git_storage.mjs` accept it: run `refreshFixtureConsumers` from
-`tools/fixture_sections.mjs` and commit `data/fixtures.json` with that change.
+Headless runs use the dummy renderer, which cannot read back MultiMesh data and
+rejects the fog scenes. On Linux run real-renderer checks as
+`xvfb-run -a godot --rendering-driver opengl3 --path . <scene>`.
 
 ## Presentation and lifecycle
 
-- [ ] **SN1 — MultiMesh copies:** `scripts/multimesh_copy.gd` and its callers are
-  done; `tests/view_occlusion_suite.gd` and the climb-arrow, aquatic, wildlife and
-  petal `_retirement.tscn` scenes pass on a real driver. Remaining failures:
-  `tests/structure_suite.gd` fails its tunnel, layered-blast and bridge cases only
-  because `res://assets/worlds/berlin_1_summer.res` is missing (SN8). The
-  `scenery_binding_retirement` and `scenery_host_retirement` scenes fail
-  `Current scenery producer: data/worlds/berlin_1_autumn.json`: that file's SHA-256
-  no longer matches the input hash recorded in `tests/fixtures/train_motion.json`.
-  Request for Sol: regenerate the train capture after the world data settles.
-- [ ] **SN2 — Preferences and field fog:** the `low_power` key check and the audio
-  INI header validation are done; `fog_geometry.tscn` and `fog_retirement.tscn`
-  pass, and no engine error is printed by either suite. Remaining failures sit
-  outside the lease. `tests/mobile_suite.gd` row `{gyroSens: true, lookSens: null}`:
-  `ConfigFile.set_value` erases a `null` value, so the stored file cannot express the
-  source `Number(null)` clamp to 0.4. Request for the suite owner: store a JSON `null`
-  as a non-numeric string such as `"null"`, which `normalize` already clamps to the
-  minimum. `tests/audio_suite.gd` assertion "A centered synthesis layer bypasses
-  panning and restores its captured normalization gain" expects `volume_linear` .35,
-  but `scripts/audio_voice.gd` now routes it through `PcmGain.native_gain`. Request
-  for Sol: confirm the expected silent-clip gain, then update one side.
 - [ ] **SN6 — Cast effects:** add the original consumer to
   `scripts/combat_effects.gd` for the public `character`, `side`, `slot`, `fx`,
   `point`, `radius`, `duration`, `level`, `fraction`, `carrier`, `origin` and
@@ -47,49 +24,38 @@ A suite whose source changes needs the consumer plan refreshed before the runner
   removed caster anchors at the effect point, and carrier casts defer their
   destination effect until delivery. Never infer a generic effect from a passing
   publication fixture. Acceptance: a source-based native fixture for both branches,
-  with `tests/cast_events_suite.gd` unchanged.
+  with `tests/cast_events_suite.gd` unchanged. Blocked: `public/js/game.js` and
+  `castfx.js` are absent from this checkout, so neither branch can be derived;
+  run it where `SVS_SOURCE` exists and never substitute a generic effect.
 
 ## Test fixtures
 
-- [ ] **SN4 — Model suites:** `tests/burst_suite.gd` (units parented under a
-  `BattleSimulation`, 0 failures) and the `scripts/civilian_body_builder.gd` owner fix
-  (`tests/snapshot_suite.gd` no longer warns) are done. `tests/civilian_body_suite.gd`
-  now reads `civilianBodyGeometry` one part at a time and runs in about a minute, but
-  the runner still rejects it for the 256 MiB budget because the scanner in
-  `tools/fixture_sections.mjs` lists every quoted section name as a preload. Request
-  for Opus: exclude keys passed to `Content.read_fixture_part` from the consumer
-  plan. Remaining here: `tests/body_suite.gd` cannot stream `bodyGeometry` while
-  `tests/body_aim_suite.gd`, `body_combat_suite.gd` and `body_gait_suite.gd` iterate
-  `fixtures.bodyGeometry`; those three need the same part-wise form (Models), after
-  which `body_suite` follows. With a raised local budget the civilian suite reports
-  4,020 outline-width failures ("appearance-adjusted bind-pose shell widths", width,
-  minimum and maximum): the civilian shells never receive the appearance scaling.
-  `burst_suite` still logs missing `assets/bodies/steel_s01.scn`-`steel_s12.scn`
-  (Models), and its `integration` case needs the berlin_1 world (SN8).
-- [ ] **SN7 — Shared fixture corrections:** all five corrections have landed:
-  unique staging identity in `tools/fixture_json.mjs` (fixed-clock concurrent writes
-  of both writers succeed and leave no stray file), explicit section arrays in the
-  four `*_render.gd` scenes, the early-signal and once-only dialogue assertions,
-  callback release in `tests/death_sequence_suite.gd` (leaks fell from 72 to 5), and
-  byte-unit comparison in `tests/raster_compare.gd` (0/1/2 byte differences pass, 3
-  fails, opaque and premultiplied). Remaining: the render scenes' raster comparisons
-  (aquatic 6, death 3, glass 6) fail on the software driver and need the real-driver
-  captures; `campaign_suite` still lists terrain failures from SN8; the source/native
-  raster suites and `tests/campaign_art.tscn` frame 7 have not been rerun with the
-  new comparator. Request for Opus (O25): the render scenes' section lists are new
-  consumers, and `death_sequence_suite` still leaks 5 objects from `Main` fields and
-  `room_world_*` scripts. Hand the 4,916 `deathSequences` failures (random order and
-  frame scalars, identical before this change) to Terra.
+- [ ] **SN4 — Model suites:** `tests/civilian_body_suite.gd` reads
+  `civilianBodyGeometry` partition by partition and `tests/burst_suite.gd` parents
+  its fixture units under a `BattleSimulation`; both edits are done but unpublished.
+  Remaining: `tests/body_suite.gd` consumes `bodyGeometry` the same way (the other
+  sections fit the 256 MiB budget once both large sections are excluded; the
+  closure is 1,010,537,852 bytes against 268,435,456 today), and
+  `tests/body_{aim,combat,gait}_suite.gd`, which body_suite preloads, must stream
+  it too because each reads `fixtures.bodyGeometry` whole. Retain
+  every row, nested frame sequence, rig reset and cross-frame state. Do not raise
+  the encoded-byte budget. Blockers: (1) the consumer scan in
+  `tools/fixture_sections.mjs::fixtureConsumers` treats any quoted section name as a
+  whole-section dependency, so an incremental reader is still preloaded; the scan
+  must skip names read through `Content.read_fixture_part` /
+  `Content.fixture_registry`. (2) After that, run `refreshFixtureConsumers` for
+  O25 because the edited suites changed their registered hashes. (3)
+  `civilian_body_suite` then fails 4020 outline-width checks with the
+  incremental reader: civilian `torso` and `pelvis` shells report `local_width`
+  .06904542 / min .00303800 / max .00621409 against .06829454 / .00300496 /
+  .00614651. Source semantics of `OutlineRules.local_uniforms` after appearance
+  scaling need Opus before `scripts/civilian_body_builder.gd` changes. (4)
+  `burst_suite` cannot run until `assets/bodies/steel_s01.scn` (and the other
+  non-kami hero bodies) are published by Models.
+
 ## Generated content
 
-- [ ] **SN5 — Companion scenes:** `assets/companions/guer_tank.scn` nodes 61/62 and
-  `assets/companions/{steel,swarm,super}_main_battle_tank.scn` nodes 81/82 must match
-  the captured `companionGeometry` world bounds and hierarchy within the existing
-  tolerance. Change `tools/import_cockpits.gd`, then regenerate with
-  `godot --path . res://tools/import_cockpits.tscn -- --companions` on a real driver.
-  Acceptance: `tests/companion_suite.gd` with complete spawn, height and lifecycle
-  scope. Run alone.
-- [ ] **SN8 — Baseline authored world:** blocked by O25, O26 and SN7. After their
+- [ ] **SN8 — Baseline authored world:** blocked by O25 and O26. After their
   contracts are accepted, bind them in `tools/source_world_meshes.gd` and
   `tools/import_worlds.gd`, then regenerate the bundles selected by smoke and the
   baseline transports through `tools/migrate_worlds.ps1`. All `berlin_1_*` captures
@@ -101,9 +67,40 @@ A suite whose source changes needs the consumer plan refreshed before the runner
   `tests/worlds.tscn -- --bundle=<bundle>`, `SMOKE_PASS` and both baseline
   transport cases. Run alone.
 
+## Requests to other owners
+
+- **Sol — `tests/mobile_suite.gd`:** `mobileTouchPreferences` case 5 carries
+  `lookSens: null`, but `ConfigFile.set_value(..., null)` erases the key, so the
+  loader sees an absent key (default 1.0) instead of the source clamp of
+  `Number(null)` (0.4). Write an empty string for a null fixture value before
+  `ConfigFile.save`; `ControlPreferences.normalize` already maps it to the minimum.
+  Acceptance: both `lookSens source scalar` assertions pass with no loader change.
+- **Sol/Opus — `tests/audio_suite.gd::_buses`:** the centered player check still
+  expects the logical gain .35; see the existing `audio_pcm_gain.gd::native_gain`
+  request in the Sol backlog. The only remaining `audio_suite` failure.
+- **Sol — scenery retirement scenes:** `scenery_binding_retirement` and
+  `scenery_host_retirement` each fail one check, "Current scenery producer:
+  data/worlds/berlin_1_autumn.json", a stale world producer hash. It clears with the
+  corrected world references and SN8 regeneration.
+
+- **Opus — O25 consumer refresh:** publish `refreshFixtureConsumers` after the
+  edited `tests/{campaign,death_sequence,burst,civilian_body}_suite.gd` are accepted;
+  their registered hashes are stale. Also unresolved on the shared side:
+  `death_sequence_suite` reports 4916 failures (death-camera random order, topple
+  and producer frames) with or without the lambda-cycle fix, and `campaign_suite`
+  reports only the missing story terrain resources. The raster scenes
+  (`aquatic`, `death`, `splat`) mismatch on the software GL renderer and need a
+  real GPU run.
+
+- **Models — remaining `MultiMesh.duplicate()` calls:** `scripts/dissolve_binding.gd`,
+  `scripts/mobile_damage_geometry.gd` and `scripts/scene_damage_geometry.gd` still
+  call `batch.multimesh.duplicate()`, which sets the buffer before the instance
+  count in Godot 4.7.2. Use `MultiMeshCopy.of`. Acceptance: their dissolve and
+  damage suites on a real driver with empty engine error output.
+
 ## Integrated reruns
 
-- [ ] **SN9 — Rerun and report:** after SN8, run the changed `*_network.gd` clocks (body, burst, camera, cockpit, death, footprint, mobile, projectile-visual, TPS and view; they count from `Session.launch_announced` and compare seats through `player_for`/`transport_for`), then
+- [ ] **SN9 — Rerun and report:** after SN8, run the changed `*_network.gd` clocks (body, burst, camera, cockpit, death, footprint, mobile, projectile-visual, TPS and view; they count from `Session.launch_announced` and compare seats through `player_for`/`transport_for`; parse-checked only so far), then
   the root suite, smoke and affected transports, one switch per run. Record each
   failure as an exact Opus request; do not fix authority or lifecycle code.
   - `-Bots` on both transports: `tests/bot_network.gd` now starts mid-lane with the

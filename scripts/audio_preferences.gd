@@ -91,53 +91,24 @@ func load_save() -> Error:
 	if not persist:
 		return OK
 	var file := ConfigFile.new()
-	var error := _parse(file)
+	var error := OK
+	if not FileAccess.file_exists(save_path):
+		error = ERR_FILE_NOT_FOUND
+	else:
+		var text := FileAccess.get_file_as_string(save_path)
+		error = FileAccess.get_open_error()
+		if error == OK:
+			error = file.parse(text) if _sections_closed(text) else ERR_PARSE_ERROR
 	if error != OK:
 		configure(rules)
 		return OK if error == ERR_FILE_NOT_FOUND else error
 	configure(rules, file.get_value("audio", "values", {}))
 	return OK
 
-## ConfigFile.load reports a malformed section header through the engine error log, so
-## headers are checked first and the file is parsed only once they are well formed.
-func _parse(file: ConfigFile) -> Error:
-	if not FileAccess.file_exists(save_path):
-		return ERR_FILE_NOT_FOUND
-	var reader := FileAccess.open(save_path, FileAccess.READ)
-	if reader == null:
-		return FileAccess.get_open_error()
-	var text := reader.get_as_text()
-	reader.close()
-	if not _headers_valid(text):
-		return ERR_PARSE_ERROR
-	return file.parse(text)
-
-static func _headers_valid(text: String) -> bool:
-	var depth := 0
-	var quoted := false
-	var escaped := false
+# ConfigFile.parse pushes an engine error for an unterminated section header.
+static func _sections_closed(text: String) -> bool:
 	for line: String in text.split("\n"):
 		var trimmed := line.strip_edges()
-		if depth == 0 and not quoted and trimmed.begins_with("["):
-			var close := trimmed.find("]")
-			if close < 0:
-				return false
-			var rest := trimmed.substr(close + 1).strip_edges()
-			if not rest.is_empty() and not rest.begins_with(";"):
-				return false
-			continue
-		for character: String in line:
-			if escaped:
-				escaped = false
-			elif quoted and character == "\\":
-				escaped = true
-			elif character == "\"":
-				quoted = not quoted
-			elif not quoted:
-				if character == ";":
-					break
-				if character in "[{":
-					depth += 1
-				elif character in "]}":
-					depth = maxi(0, depth - 1)
+		if trimmed.begins_with("[") and not trimmed.ends_with("]"):
+			return false
 	return true

@@ -151,6 +151,13 @@ if(process.argv.includes('--audio-music-gain')) {
   await publishAudioMusicGain(root,source,{playwrightModule:option('--playwright-module'),chrome:option('--chrome')});
   process.exit(0);
 }
+if(process.argv.includes('--native-images')) {
+  if(outputIndex>=0||auditReferencesOnly)throw new Error('Choose one source publication operation');
+  const option=name=>{const index=process.argv.indexOf(name);return index<0?undefined:resolve(process.argv[index+1]);};
+  const {publishNativeImages}=await import('./native_images.mjs');
+  await publishNativeImages(root,source,{playwrightModule:option('--playwright-module'),chrome:option('--chrome')});
+  process.exit(0);
+}
 const producer=auditReferencesOnly?null:await captureGenerator(root);
 const sourceBefore=auditReferencesOnly?null:await captureSourceFiles(source);
 const workspaceBefore=auditReferencesOnly?null:await captureWorkspaceInputs(root);
@@ -478,8 +485,16 @@ for (const [name, value] of Object.entries({ balance: { constants, heroes, unitV
   }
   else await writeSourceFile(target,JSON.stringify(value));
 }
-for (const folder of ['models/reference', 'models/combat', 'models/factions', 'characters', 'avatars', 'mechs', 'mech_avatars', 'story']) {
+for (const folder of ['models/reference', 'models/combat', 'models/factions', 'characters', 'avatars', 'mechs', 'mech_avatars']) {
   await cp(join(source, 'public/assets', folder), join(publicationRoot, 'assets', folder), { recursive: true,onFile:recordAssetInput });
+}
+{
+  // Story, loading and logo art: most originals are JPEG bytes under PNG names,
+  // so publish native lossless encodings before provenance seals the capture.
+  const {launchImageDecoder,encodeNativeImages,writeNativeImageManifest}=await import('./native_images.mjs');
+  const browser=await launchImageDecoder(source);
+  try {await writeNativeImageManifest(publicationRoot,await encodeNativeImages(browser,source,publicationRoot,producer,recordAssetInput));}
+  finally {await browser.close();}
 }
 await mkdir(join(publicationRoot, 'assets/ui'), { recursive: true });
 for (const [id,definition] of Object.entries(controlsReference.rules.statusIcons.definitions)) {

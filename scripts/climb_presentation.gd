@@ -76,7 +76,7 @@ func configure(root: Node3D, accepted: Array) -> bool:
 				or node.multimesh.instance_count != routes.size() * int(rules.N) * 2:
 			push_error("Original climb arrow batches do not match the captured routes")
 			return false
-		node.multimesh = MultiMeshCopy.duplicate_of(node.multimesh)
+		node.multimesh = MultiMeshCopy.of(node.multimesh)
 		if not _current(token):
 			return false
 		batches[key] = node

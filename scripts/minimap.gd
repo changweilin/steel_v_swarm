@@ -212,7 +212,8 @@ func _commands_for(frame: Dictionary, shown_positions: Dictionary) -> Array:
 			"point": _project(shown_positions.get(int(unit.id), unit.position), frame.window, frame.size, precise)})
 	var known: Array = []
 	for record: Dictionary in frame.bunkers:
-		known.append({"side": record.side, "point": MinimapWindow.project_components_pair(record.point.x, record.point.y, precise, frame.size)})
+		known.append({"side": record.side, "point": MinimapWindow.project_components_pair(
+			float(record.get("x", record.point.x)), float(record.get("z", record.point.y)), precise, frame.size)})
 	var own: Variant = MinimapWindow.project_components_pair(frame.focus.x, frame.focus.y, precise, frame.size) if not String(frame.side).is_empty() else null
 	return MinimapMarkerState.commands(rows, frame.side, known, own, frame.heading)
 

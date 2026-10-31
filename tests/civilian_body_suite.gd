@@ -1,21 +1,24 @@
 extends RefCounted
 
 const Helper = preload("res://tests/status_suite.gd")
-const GEOMETRY := "civilianBodyGeometry"
 
+# The geometry section is larger than the whole-suite budget, so each captured
+# partition is decoded, checked and released before the next one is read.
 static func run(h: Node, _fixtures: Dictionary = {}) -> void:
-	var section: Dictionary = Content.fixture_registry.get("sections", {}).get(GEOMETRY, {})
+	var section: Dictionary = Content.fixture_registry.get("sections", {}).get("civilianBodyGeometry", {})
 	if section.is_empty():
 		h._check(false, "Regenerate original per-ID civilian geometry and articulated-frame references")
 		return
-	# The oracle is too large to hold at once; each part is compared and released before the next.
+	var rows := 0
 	for part in section.parts.size():
-		var items: Array = Content.read_fixture_part(GEOMETRY, part)
+		var items: Array = Content.read_fixture_part("civilianBodyGeometry", part)
+		rows += items.size()
 		for item: Dictionary in items:
-			_case(h, item)
-		items.clear()
+			_check_item(h, item)
+		items = []
+	h._check(rows == int(section.count), "Every captured civilian case is consumed in original section order")
 
-static func _case(h: Node, item: Dictionary) -> void:
+static func _check_item(h: Node, item: Dictionary) -> void:
 	var unit := BattleUnit.new()
 	h.add_child(unit)
 	unit.configure({"id": int(item.seed), "kind": "civilian", "side": "", "position": Vector3.ZERO,

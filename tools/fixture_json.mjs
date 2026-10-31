@@ -1,5 +1,5 @@
-import {open,rename,rm,writeFile} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
+import {open,rename,rm} from 'node:fs/promises';
 import {Readable} from 'node:stream';
 import {pipeline} from 'node:stream/promises';
 import {setTimeout as delay} from 'node:timers/promises';
@@ -16,16 +16,15 @@ async function publishFile(temporary,path) {
 }
 export {publishFile as publishSourceFile};
 
-// Every invocation owns a distinct staging identity, even within one clock tick or process.
-let stagingSequence=0;
+// Each invocation owns a unique staging path, so a fixed clock cannot make two
+// writers share one and a rejected exclusive open never removes a foreign file.
 function stagingPath(path) {
-  return path+'.partial-'+process.pid+'-'+Date.now()+'-'+(stagingSequence++)+'-'+randomUUID();
+  return path+'.partial-'+process.pid+'-'+Date.now()+'-'+randomUUID();
 }
 
 export async function writeSourceFile(path,data) {
   if(typeof path!=='string')throw new TypeError('Expected a source output path');
   const temporary=stagingPath(path);
-  // A rejected exclusive open leaves any foreign bytes in place; only an opened file is ours to remove.
   const handle=await open(temporary,'wx');
   let encoded=false;
   try {

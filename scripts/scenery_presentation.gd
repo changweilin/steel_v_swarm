@@ -137,7 +137,7 @@ func configure(root: Node3D, train_sources: Array = [], motion_sources: Array = 
 			if batch == null or batch.multimesh == null:
 				push_error("Original instanced building clearance requires its source MultiMesh")
 				return false
-			batch.multimesh = MultiMeshCopy.duplicate_of(batch.multimesh)
+			batch.multimesh = MultiMeshCopy.of(batch.multimesh)
 			if not _current(token):
 				return false
 			batches.append(batch)

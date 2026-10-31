@@ -18,6 +18,16 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   cancellation. Both fog transitions use wall time even when the game is paused
   or runs at a different speed. Native tween writes must reach shader uniforms in
   the same frame.
+  Player FOV easing clamps a negative timestep to zero outside the original snap
+  band; snapping inside that band remains independent of timestep. `node
+  tools/scope_fov_capture.mjs`, `node --test tests/scope_fov.test.mjs` and
+  `tests/scope_fov.tscn` compare eleven controlled Chromium programs, including
+  snap boundaries. `node tools/scope_fov_sequence_capture.mjs`,
+  `node --test tests/scope_fov_sequence.test.mjs` and real-driver
+  `tests/scope_fov_sequence.tscn` compare 431 original easing, reversal and
+  zero-timestep frames and their native camera FOV values. These controlled
+  results do not qualify projection update timing, populated view transitions
+  or transport.
   `node tools/scope_transition_capture.mjs` and real-driver
   `tests/scope_transition.tscn` compare original browser transitions and native
   uniforms and test paused, zero-speed and accelerated wall-clock transitions;
@@ -37,6 +47,14 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   shader parameters. An unscoped weather gradient also keeps its prior stops
   while fading to zero. `tests/scope_weather_retention.tscn` retains the original
   fade and mode-change programs, including the four shared-shader failures below.
+  The underlying scope radius and weather-stop functions apply the original
+  `value || 0` before clamping, including NaN and signed infinities. `node
+  tools/scope_nonfinite_capture.mjs`, `node --test tests/scope_nonfinite.test.mjs`
+  and `tests/scope_nonfinite.tscn` compare 49 Chromium input pairs against native
+  double results. The overlay applies the same bounded density before setting
+  targets and blur; repeated NaN input retains an unchanged fade and zero weather
+  retains the prior gradient. These controlled probes do not qualify non-finite
+  upstream data or shader pixels.
   These values do not qualify the shared shader or full pixels.
   `node tools/scope_raster_capture.mjs` and real-driver `tests/scope_raster.tscn`
   retain original CSS/HUD callback composition over controlled browser backgrounds.
@@ -66,6 +84,13 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   `tests/spectator_roster.tscn` compare the original Chromium roster, filtering,
   follow target and notice. Controlled duplicate rows do not qualify populated
   transport or upstream snapshot identity.
+  Roster filtering applies source truthiness before converting a player ID to a
+  string, so missing, null, numeric zero and NaN cannot become follow targets;
+  the nonempty string `"0"` remains valid. `node
+  tools/spectator_roster_pid_capture.mjs`,
+  `node --test tests/spectator_roster_pid.test.mjs` and
+  `tests/spectator_roster_pid.tscn` compare twelve original Chromium cases.
+  The controlled rows do not establish the upstream recipient ID schema.
   Observer heading retains the previous value when a target heading is absent
   or null, and clamps nonpositive interpolation time to the original no-motion
   behavior. `node tools/spectator_heading_capture.mjs`,
@@ -161,7 +186,15 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   `tests/pip_death_selection.tscn` execute the original Chromium method and
   check controlled native-representable coordinates, equal and near ties,
   hidden/missing models and source visibility restoration. A missing native
-  model-availability flag cannot admit a source. `PipDeathState.eye_position`
+  model-availability flag cannot admit a source. `PipDeathState.source_coordinates`
+  also preserves the enemy-base coordinates as scalar doubles until the distance
+  comparison; `source` retains its existing Vector2 interface. `node
+  tools/pip_death_enemy_precision_capture.mjs`,
+  `node --test tests/pip_death_enemy_precision.test.mjs` and
+  `tests/pip_death_enemy_precision.tscn` retain eight original selection cases,
+  including near-ties that select a different tower after Vector2 rounding. This
+  path still requires the recipient publication contract below before use.
+  `PipDeathState.eye_position`
   retains the source's measured-top/zero/NaN fallback and ground-height eye
   offsets before native vector storage. `node tools/pip_death_pose_capture.mjs`,
   `node --test tests/pip_death_pose.test.mjs` and `tests/pip_death_pose.tscn`
@@ -173,7 +206,15 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   `node --test tests/pip_death_gate.test.mjs` and `tests/pip_death_gate.tscn`
   retain 13 Chromium programs, including exact and sub-boundary sizes. Source
   camera preparation occurs before the separate size gate. These cases do not
-  implement a native inset: view direction and camera matrix, actual terrain
+  implement a native inset. `node tools/pip_death_direction_capture.mjs`,
+  `node --test tests/pip_death_direction.test.mjs` and
+  `tests/pip_death_direction.tscn` retain 522 original Chromium target/up-vector
+  cases for both source and fallback cameras, including zero and tiny directions.
+  The existing `CarrierRules.hypot2` candidate matches these controlled scalar
+  target bits, but is not an accepted general browser-hypot binding; keep the
+  shared numeric contract below open before wiring this consumer. The exact
+  fixture inputs are restored from double bits because Godot JSON parsing can
+  perturb decimal inputs. These cases do not qualify the camera matrix, actual terrain
   queries, frame-to-renderer conversion, death-page lifecycle, populated snapshot
   delivery and pixels remain open.
 - [ ] **S13 — Minimap:** certify full/vicinity windows, warmup/draw deadlines,
@@ -207,8 +248,19 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   `node --test tests/minimap_bunker.test.mjs` and real-driver
   `tests/minimap_bunker.tscn` compare seven original snapshot programs, committed
   frame isolation, bunker marker positions/colors and match reset. These inputs
-  use native-representable positions; they do not qualify unrounded transport
-  coordinates or marker pixels.
+  use native-representable positions. `remember_coordinates` additionally keeps
+  supplied world coordinates as scalar doubles through deduplication, frame
+  capture and marker projection. `node tools/minimap_bunker_precision_capture.mjs`,
+  `node --test tests/minimap_bunker_precision.test.mjs` and
+  `tests/minimap_bunker_precision.tscn` compare the original four snapshot
+  sequences, including distinct values that collapse to one native vector. The
+  key calculation also preserves JavaScript rounding immediately below half;
+  `node tools/minimap_bunker_rounding_capture.mjs`,
+  `node --test tests/minimap_bunker_rounding.test.mjs` and
+  `tests/minimap_bunker_rounding.tscn` retain fifteen original rounding cases.
+  The current snapshot path still supplies Vector3 positions; the publication
+  contract below is required before this precision path can consume them. These
+  probes do not qualify unrounded transport coordinates or marker pixels.
   Window edges retain scalar doubles through the committed terrain crop, marker,
   lane and hard/soft reveal plans; conversion occurs at the native drawing
   boundary. The label rounds the unconverted source width.
@@ -846,6 +898,40 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
 
 ## Integration and handoffs
 
+- **Opus — player FOV projection boundary:** agree a source-faithful camera
+  projection contract for `scripts/main.gd::_advance_view` and, if an adapter is
+  required, `scripts/source_camera_projection.gd`. The source Three.js camera
+  builds its perspective matrix from a double FOV, while the native camera FOV
+  is stored as float32. A real OpenGL Compatibility probe compared the original
+  Three.js perspective implementation (source CRLF SHA-256
+  `c6eacae1ec5fd832160227ca7441311c8b30dee0419af87954fb9df6d105bf1f`)
+  in V8 against `Camera3D.get_camera_projection()` for the 431 controlled FOV
+  sequence frames; 179 matrices differ after source elements are converted to
+  float32. At source FOV `51.9427649280755`, native FOV is
+  `51.9427642822266`, source matrix x scale is `1.28306603431702`, and native is
+  `1.28306591510773`; the 68-degree control agrees. The input/expected matrices,
+  native probe and driver output are in `artifacts/terra/fov_projection_sequence.json`,
+  `artifacts/terra/fov_projection_probe.tscn` and
+  `artifacts/terra/fov-projection-sequence.log`. Acceptance: compare the actual
+  Chromium Three.js projection and native render/previous-frame projection over
+  zoom, reversal, viewport/aspect and near/far cases, without widening tolerances;
+  retain view-lock ordering and authority boundaries. Terra binds an accepted
+  projection contract separately. The controlled matrix comparison is not a
+  populated view-lock or pixel test.
+
+- **Opus — bunker snapshot coordinate precision:** define a recipient-visible
+  scalar-double bunker coordinate contract in `scripts/unit.gd::snapshot`,
+  `scripts/actor_snapshot.gd::project` and `scripts/simulation.gd` before Terra
+  binds it in `scripts/minimap.gd::accept_snapshot`. The current snapshot
+  publishes `global_position` as Vector3, which rounds source coordinates before
+  the original `Math.round` deduplication and persistent marker storage. Preserve
+  recipient visibility, snapshot order, source world-axis inversion and the
+  original unrounded coordinates where authoritative source values exist; do not
+  manufacture precision from an already-rounded Vector3. Acceptance: the source
+  boundary cases in `tests/minimap_bunker_precision.tscn` pass through the real
+  offline, ENet and WebSocket publication path, including replacement, memory
+  persistence and match reset. Terra then wires the agreed fields separately.
+
 - **Flash — death-page inset host:** expose an actual death-page frame and its
   effective visibility through `scripts/native_ui.gd` for a future Terra-owned
   frontline inset. Preserve the original `#deadCam` bounds, 16:9 aspect, 2 px
@@ -857,7 +943,7 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
 - **Opus — frontline inset publication:** define the recipient-view contract in
   `scripts/main.gd`, `scripts/simulation.gd` and, if needed,
   `scripts/actor_snapshot.gd` for the Terra death-view consumer. Publish the
-  original enemy-base world coordinates, snapshot-ordered actor identity, kind,
+  original enemy-base world coordinates as scalar doubles, snapshot-ordered actor identity, kind,
   side, death state, model availability/position and measured top height, plus
   death-sequence/game-over/respawn gates and the death position/terrain query.
   Preserve recipient visibility, prior-snapshot lifetime and combat authority;
@@ -1063,8 +1149,10 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   not a populated targeting or browser-bit qualification. Acceptance: the
   shared adapter matches original Chromium two-argument results across source
   coordinates, zero, subnormal and non-finite inputs without tables or wider
-  tolerances. Terra then keeps subtraction in scalar doubles and validates both
-  axes before native storage with the original view-lock program.
+  tolerances. Include `tests/pip_death_direction.tscn` for both death-view
+  target branches and further source cases before Terra binds this consumer.
+  Terra then keeps subtraction in scalar doubles and validates both axes before
+  native storage with the original view-lock program.
 - **Opus — minimap shadow distance:** include `scripts/minimap_vision.gd::shadows`
   in the shared two-argument browser `Math.hypot` acceptance above. With the
   Float32-representable source `(0, 0)` and blocker center
@@ -1465,6 +1553,18 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   `PW_CHROME=C:/Users/user/AppData/Local/ms-playwright/chromium-1234/chrome-win64/chrome.exe`.
   Godot is at
   `C:/Users/user/AppData/Local/Temp/steel-v-swarm-godot/Godot_v4.7.2-stable_win64_console.exe`.
+  On this checkout, the same Godot version is also available at
+  `artifacts/opus/godot/Godot_v4.7.2-stable_win64_console.exe`. A partial,
+  hash-verified partial source copy is in `build/terra-source/`; it contains
+  `public/js/game.js`, `public/js/data.js` and `tools/audit_src.mjs`, but is not
+  a full source checkout. Its `out/forest_review/three.module.js` copy does not
+  match the recorded hash and cannot be used for source captures.
+  Chrome is available at `C:/Program Files/Google/Chrome/Application/chrome.exe`;
+  the bundled Playwright entry is
+  `C:/Users/WaylenChang0726/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs`.
+  Set `PW_CHROME` and `PW_MODULE` explicitly when using these alternatives.
+  This Chrome reports version 156.0.8078.73, while existing captures may have
+  used another version; retain that distinction and the original-source hashes.
   Missing native worlds still block populated runtime/transport acceptance.
 - **Sol — CSS/input/frame dependencies:** consume `scripts/css_transition.gd`,
   `scripts/css_decimal.gd`, local input/feedback and world/resource producers

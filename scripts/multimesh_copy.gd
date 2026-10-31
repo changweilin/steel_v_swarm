@@ -1,10 +1,9 @@
 class_name MultiMeshCopy
 extends RefCounted
 
-## Independent copy of a MultiMesh. Godot 4.7.2 `MultiMesh.duplicate()` calls
-## `set_buffer` before `instance_count`, which rejects the copy, so every property
-## is applied in an order that sizes the buffer first.
-static func duplicate_of(source: MultiMesh) -> MultiMesh:
+# Godot 4.7.2 MultiMesh.duplicate() assigns the buffer before instance_count, so
+# the copy is built explicitly: format flags first, then the count, then the data.
+static func of(source: MultiMesh) -> MultiMesh:
 	var copy := MultiMesh.new()
 	copy.transform_format = source.transform_format
 	copy.use_colors = source.use_colors

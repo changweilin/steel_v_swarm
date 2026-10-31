@@ -1,34 +1,32 @@
 extends RefCounted
 
-const BYTE_FORMATS := [Image.FORMAT_L8, Image.FORMAT_LA8, Image.FORMAT_R8, Image.FORMAT_RG8, Image.FORMAT_RGB8, Image.FORMAT_RGBA8]
-
-## Compares in 8-bit channel units when both images are byte buffers, so a tolerance of two
-## bytes is not decided by Float32 rounding of the normalized difference. Other formats keep
-## the normalized comparison.
+# Compare exact RGBA8 bytes: normalized Float32 channel differences can exceed a
+# whole-byte tolerance such as 2/255 even when the byte difference is within it.
 static func compare(actual: Image, expected: Image, tolerance: float = 2.0 / 255) -> Dictionary:
 	assert(actual.get_size() == expected.get_size(), "Raster comparison requires matching dimensions")
-	var bytes: bool = actual.get_format() in BYTE_FORMATS and expected.get_format() in BYTE_FORMATS
-	var scale := 255.0 if bytes else 1.0
-	var limit := snappedf(tolerance * scale, 0.000001)
-	var maximum := 0.0
+	var a_bytes := _bytes(actual)
+	var b_bytes := _bytes(expected)
+	var allowed := int(roundf(tolerance * 255.0))
+	var maximum := 0
 	var mismatched := 0
-	for y in range(expected.get_height()):
-		for x in range(expected.get_width()):
-			var a := actual.get_pixel(x, y)
-			var b := expected.get_pixel(x, y)
-			var error := 0.0
-			# Native offscreen buffers use premultiplied RGB; browser PNGs use straight RGB.
-			if bytes:
-				var alpha := float(b.a8)
-				error = maxf(absf(a.a8 - alpha), maxf(absf(a.r8 - b.r8 * alpha / 255.0),
-					maxf(absf(a.g8 - b.g8 * alpha / 255.0), absf(a.b8 - b.b8 * alpha / 255.0))))
-			else:
-				error = maxf(absf(a.a - b.a), maxf(absf(a.r - b.r * b.a),
-					maxf(absf(a.g - b.g * b.a), absf(a.b - b.b * b.a))))
-			maximum = maxf(maximum, error)
-			if error > limit + 0.000001:
-				mismatched += 1
-	return {"pixels": mismatched, "maximum": maximum / scale}
+	for offset in range(0, mini(a_bytes.size(), b_bytes.size()), 4):
+		var alpha := absi(a_bytes[offset + 3] - b_bytes[offset + 3])
+		# Native offscreen buffers use premultiplied RGB; browser PNGs use straight RGB.
+		# The straight channel is scaled by alpha/255, so differences are in 1/255 byte units.
+		var colour := 0
+		for channel in range(3):
+			colour = maxi(colour, absi(a_bytes[offset + channel] * 255 - b_bytes[offset + channel] * b_bytes[offset + 3]))
+		var error := maxi(alpha * 255, colour)
+		maximum = maxi(maximum, error)
+		if error > allowed * 255:
+			mismatched += 1
+	return {"pixels": mismatched, "maximum": float(maximum) / (255.0 * 255.0)}
+
+static func _bytes(image: Image) -> PackedByteArray:
+	var copy := image.duplicate() as Image
+	if copy.get_format() != Image.FORMAT_RGBA8:
+		copy.convert(Image.FORMAT_RGBA8)
+	return copy.get_data()
 
 static func diagnostic(actual: Image) -> Image:
 	var result := actual.duplicate() as Image

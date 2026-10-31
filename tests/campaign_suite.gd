@@ -95,12 +95,12 @@ static func dialogue_lifecycle(h: Node) -> void:
 	var deadline: float = clock.now + line_timer.wait_time * 1000
 	clock.now = deadline - .001
 	line_timer.timeout.emit()
-	h._check(dialogue.at == 1 and dialogue.timers.size() == 1 and dialogue.timers[0] == line_timer, "An early radio timeout is rearmed and cannot advance the line before its wall deadline")
+	h._check(dialogue.at == 1 and dialogue.timers == [line_timer], "An early radio signal re-arms instead of advancing the line")
 	clock.now = deadline
 	line_timer.timeout.emit()
 	h._check(dialogue.at == 2, "Live radio advances by timer without manual gameplay input")
 	line_timer.timeout.emit()
-	h._check(dialogue.at == 2, "A delivered line deadline advances the radio only once")
+	h._check(dialogue.at == 2, "A delivered radio deadline advances the line once")
 	dialogue.dispose()
 	h._check(not dialogue.track_label.visible and dialogue.timers.is_empty(), "Room exit disposes radio and stage track")
 	dialogue.queue_free()

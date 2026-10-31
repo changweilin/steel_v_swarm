@@ -156,10 +156,19 @@ func story_texture(path: String, mipmaps: bool = false) -> Texture2D:
 		return art_cache[key]
 	if not ResourceLoader.exists(native_path):
 		return null
-	var texture: Texture2D = load(native_path)
+	# A failed native decode is unavailable art, never a cached or derived texture.
+	var texture := load(native_path) as Texture2D
+	if texture == null:
+		return null
 	if mipmaps:
-		var data := texture.get_image()
-		data.generate_mipmaps()
+		# Renderers may return the texture's retained image; derive levels from a copy.
+		var image := texture.get_image()
+		if image == null or image.is_empty():
+			return null
+		var data := Image.new()
+		data.copy_from(image)
+		if data.generate_mipmaps() != OK:
+			return null
 		texture = ImageTexture.create_from_image(data)
 	art_cache[key] = texture
 	return texture

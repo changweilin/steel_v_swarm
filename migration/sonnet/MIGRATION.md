@@ -14,8 +14,9 @@ Isolate one suite with
 `--headless` uses the dummy renderer, which keeps no `MultiMesh` buffer. Suites that
 read instance transforms need a real driver, for example
 `xvfb-run -a godot --path . --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy --resolution 320x240 res://tests/run.tscn -- --fixture-suite=...`.
-A suite whose source changes needs the consumer plan refreshed before the runner
-accepts it (see SN4 and SN7); registry edits stay with Opus.
+A suite whose source changes needs the consumer plan refreshed before the runner and
+`tools/check_git_storage.mjs` accept it: run `refreshFixtureConsumers` from
+`tools/fixture_sections.mjs` and commit `data/fixtures.json` with that change.
 
 ## Presentation and lifecycle
 
@@ -55,11 +56,9 @@ accepts it (see SN4 and SN7); registry edits stay with Opus.
   (`tests/snapshot_suite.gd` no longer warns) are done. `tests/civilian_body_suite.gd`
   now reads `civilianBodyGeometry` one part at a time and runs in about a minute, but
   the runner still rejects it for the 256 MiB budget because the scanner in
-  `tools/fixture_sections.mjs` lists every quoted section name as a preload. Requests
+  `tools/fixture_sections.mjs` lists every quoted section name as a preload. Request
   for Opus: exclude keys passed to `Content.read_fixture_part` from the consumer
-  plan, then refresh consumers for `burst_suite`, `civilian_body_suite`,
-  `campaign_suite` and `death_sequence_suite` (their sources changed). Remaining
-  here: `tests/body_suite.gd` cannot stream `bodyGeometry` while
+  plan. Remaining here: `tests/body_suite.gd` cannot stream `bodyGeometry` while
   `tests/body_aim_suite.gd`, `body_combat_suite.gd` and `body_gait_suite.gd` iterate
   `fixtures.bodyGeometry`; those three need the same part-wise form (Models), after
   which `body_suite` follows. With a raised local budget the civilian suite reports

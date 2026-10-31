@@ -63,7 +63,7 @@ static func source_pid(player: int) -> String:
 static func roster(actors: Array) -> Array:
 	var result: Array = []
 	for actor: Dictionary in actors:
-		if not actor.get("hero", false) or str(actor.get("pid", "")).is_empty() or actor.get("act", true) == false:
+		if not actor.get("hero", false) or not ControlPreferences.truthy(actor.get("pid")) or actor.get("act", true) == false:
 			continue
 		# Native IDs use only decimal digits and the lowercase source bot prefix.
 		# Insert after equal keys, matching the original stable Array.sort.

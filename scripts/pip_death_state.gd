@@ -16,6 +16,9 @@ static func viewport(frame: Dictionary, canvas: Dictionary, client_height: float
 	return {"x": x, "y": y, "width": width, "height": height}
 
 static func source(rows: Array, side: String, enemy: Vector2) -> Variant:
+	return source_coordinates(rows, side, float(enemy.x), float(enemy.y))
+
+static func source_coordinates(rows: Array, side: String, enemy_x: float, enemy_z: float) -> Variant:
 	if side.is_empty():
 		return null
 	var best := INF
@@ -24,8 +27,8 @@ static func source(rows: Array, side: String, enemy: Vector2) -> Variant:
 		if row.kind != "tower" or row.side != side or bool(row.get("dead", false)) or not bool(row.get("mesh", false)):
 			continue
 		var position: Vector3 = row.position
-		var dx := float(position.x) - float(enemy.x)
-		var dz := float(position.z) - float(enemy.y)
+		var dx := float(position.x) - enemy_x
+		var dz := float(position.z) - enemy_z
 		var distance := dx * dx + dz * dz
 		if distance < best:
 			best = distance

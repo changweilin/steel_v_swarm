@@ -41,17 +41,19 @@ static func color_value(value: Array) -> Color:
 func update_view(state: ScopeState, scoped: bool) -> void:
 	scope_active = scoped
 	var rules: Dictionary = Content.balance.view.mask
-	if fire_target != state.fire_fog:
-		fire_target = state.fire_fog
+	var fire := ScopeState.normalized_density(state.fire_fog)
+	var weather := ScopeState.normalized_density(state.weather_fog)
+	if fire_target != fire:
+		fire_target = fire
 		fire_tween = _start_fade("fire_opacity", fire_target, rules.fireTransition, fire_tween, fire_transition)
-	if weather_target != state.weather_fog:
-		weather_target = state.weather_fog
+	if weather_target != weather:
+		weather_target = weather
 		weather_tween = _start_fade("weather_opacity", weather_target, rules.weatherTransition, weather_tween, weather_transition)
-	var radius := ScopeState.radius_vmin(state.fire_fog, state.weather_fog)
+	var radius := ScopeState.radius_vmin(fire, weather)
 	shader_material.set_shader_parameter("radius_vmin", CssDecimal.fixed(radius, 1))
-	if state.weather_fog > 0:
+	if weather > 0:
 		var inner := maxf(float(rules.weatherInnerMinimum), radius - float(rules.weatherInnerInset))
-		var stops := ScopeState.weather_stop_components(state.weather_fog)
+		var stops := ScopeState.weather_stop_components(weather)
 		# The source keeps the last gradient while its opacity fades to zero.
 		shader_material.set_shader_parameter("weather_inner_vmin", CssDecimal.fixed(inner, 1))
 		shader_material.set_shader_parameter("weather_stops", Vector2(CssDecimal.fixed(stops[0] * 100, 1) / 100,
@@ -60,7 +62,7 @@ func update_view(state: ScopeState, scoped: bool) -> void:
 	shader_material.set_shader_parameter("scoped", scoped)
 	shader_material.set_shader_parameter("fire_opacity", fire_opacity)
 	shader_material.set_shader_parameter("weather_opacity", weather_opacity)
-	shader_material.set_shader_parameter("fire_blur", CssDecimal.fixed(state.fire_fog * float(rules.blurPixels), 2))
+	shader_material.set_shader_parameter("fire_blur", CssDecimal.fixed(fire * float(rules.blurPixels), 2))
 	visible = scoped or fire_opacity > 0 or weather_opacity > 0 or fire_target > 0 or weather_target > 0
 
 func _start_fade(property: String, target: float, seconds: float, previous: Tween, transition: Dictionary) -> Tween:

@@ -13,5 +13,8 @@ static func duplicate_of(source: MultiMesh) -> MultiMesh:
 	copy.instance_count = source.instance_count
 	copy.visible_instance_count = source.visible_instance_count
 	copy.custom_aabb = source.custom_aabb
-	copy.buffer = source.buffer
+	# The dummy renderer keeps no buffer, and set_buffer rejects an empty one for a sized copy.
+	var data := source.buffer
+	if not data.is_empty():
+		copy.buffer = data
 	return copy

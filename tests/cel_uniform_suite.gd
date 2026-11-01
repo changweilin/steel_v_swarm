@@ -59,6 +59,12 @@ static func _material_storage(h: Node, fixtures: Dictionary) -> void:
 	h._check(bundle.attach(first, source) and bundle.attach(second, source.duplicate(true)), "Attach independent copies of original typed cel material values")
 	h._check(bundle.material_sources.size() == 1 and first.get_meta("source_cel") == second.get_meta("source_cel"), "Equal original material descriptions share one native Resource table entry")
 	h._check(SourceCelData.material_source(first) == source and SourceCelData.material_source(second) == source, "Shared material references retain every original typed uniform")
+	first.vertex_color_use_as_albedo = true
+	second.vertex_color_use_as_albedo = true
+	var shared := SourceCelVertexColors.material(first)
+	h._check(shared != null and shared == SourceCelVertexColors.material(second), "Equal float-colour surfaces share one material RID under the engine's global limit")
+	second.albedo_color = Color(.5, .25, .75)
+	h._check(shared != SourceCelVertexColors.material(second), "Distinct float-colour surface state keeps its own material")
 	var legacy := StandardMaterial3D.new()
 	legacy.set_meta("source_cel", source)
 	legacy.set_meta("source_cel_data", bundle)

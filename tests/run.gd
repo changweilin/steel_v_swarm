@@ -366,6 +366,12 @@ func _run_fixture_suite(suite: Variant) -> void:
 		_check(false, "Unverified source suite requires incremental case consumption: " + suite.resource_path + " bytes=" + str(encoded_bytes))
 		failure_scope = "core"
 		return
+	# A mismatched call is only a script error, which would otherwise report assertions=0 as a pass.
+	var arguments := 1 if suite in [RoomWorldResourceTests, RoomWorldPrebuildTests] else 2
+	if _run_arguments(suite) != arguments:
+		_check(false, "Selected source suite does not accept this runner's arguments: " + suite.resource_path)
+		failure_scope = "core"
+		return
 	var data: Dictionary = Content.read_json("res://data/fixtures.json", keys)
 	print("SOURCE_SUITE_BEGIN ", suite.resource_path)
 	if suite in [RoomWorldResourceTests, RoomWorldPrebuildTests]:
@@ -376,6 +382,12 @@ func _run_fixture_suite(suite: Variant) -> void:
 	await get_tree().process_frame
 	print("SOURCE_SUITE_END ", suite.resource_path, " assertions=", assertions - previous_assertions, " failures=", failures - previous_failures)
 	failure_scope = "core"
+
+func _run_arguments(suite: GDScript) -> int:
+	for method: Dictionary in suite.get_script_method_list():
+		if method.name == "run":
+			return method.args.size()
+	return -1
 
 func _missile_flight_tests(fixtures: Array) -> void:
 	for fixture in fixtures:

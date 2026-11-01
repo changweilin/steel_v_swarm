@@ -23,19 +23,7 @@ static func turn_delta(angle: float) -> float:
 
 static func hypot2(x: float, z: float) -> float:
 	# Preserve the captured V8 two-argument Math.hypot rounding at the dive apex.
-	# https://github.com/nodejs/node/blob/v24.19.0/deps/v8/src/builtins/math.tq
-	var a := absf(x)
-	var b := absf(z)
-	if is_inf(a) or is_inf(b):
-		return INF
-	if is_nan(a) or is_nan(b):
-		return NAN
-	var largest := maxf(a, b)
-	if largest == 0:
-		return 0.0
-	a /= largest
-	b /= largest
-	return sqrt(a * a + b * b) * largest
+	return SourceNumeric.hypot(x, z)
 
 static func destination(origin: Dictionary, x: float, z: float, yaw: float) -> Dictionary:
 	var dx: float = x - origin.x

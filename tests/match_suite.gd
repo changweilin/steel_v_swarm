@@ -1,6 +1,22 @@
 extends RefCounted
 
 const StatusHelper = preload("res://tests/status_suite.gd")
+const MainScript = preload("res://scripts/main.gd")
+const SessionScript = preload("res://scripts/session.gd")
+
+class RelayEffects extends CombatEffects:
+	var sparks: Array = []
+	func spark(point: Vector3, radius: float, color: int, _delay: float = 0) -> void:
+		sparks.append([point, radius, color])
+
+class RelayWorld extends BattleWorld:
+	var effects := RelayEffects.new()
+	var height_queries: Array = []
+	func ground_height(x: float, z: float) -> float:
+		height_queries.append(Vector2(x, z))
+		return 2.5
+	func ensure_combat_effects() -> CombatEffects:
+		return effects
 
 class MatchSimulation extends BattleSimulation:
 	func _missile_target_altitude(unit: BattleUnit) -> float:
@@ -73,6 +89,9 @@ static func run(h: Node, fixtures: Dictionary) -> void:
 	h._check(replica.match_stats.SWARM.deaths == 0, "Replica cannot settle match death counters")
 	authority.free()
 	replica.free()
+	_unbalance_publication(h)
+	_snapshot_acceptance(h)
+	_relay_activation(h)
 	print("MATCH_REFERENCE_PASS deaths=", fixtures.matchDeaths.size())
 
 static func create(h: Node) -> MatchSimulation:
@@ -98,3 +117,122 @@ static func actor(simulation: BattleSimulation, id: int, side: String, hero: boo
 	unit.hit_area = Area3D.new()
 	unit.add_child(unit.hit_area)
 	return unit
+
+static func _unbalance_publication(h: Node) -> void:
+	var simulation := create(h)
+	var threshold := WeatherRules.unbalance_threshold(0)
+	var unit := actor(simulation, 1, "SWARM", true)
+	unit.kind = "drone"
+	var clear := func() -> void:
+		unit.flying = true
+		unit.hp = 1
+		unit.position.y = threshold
+		unit.air_sink = 0
+		unit.lift_lock_until = 0
+		unit.status.erase("unbalanced_until")
+	var published := func() -> bool:
+		return simulation._owner_control_status(unit).unbalanced
+	clear.call()
+	simulation.clock = 10.0
+	h._check(not published.call(), "Airborne units with no sink, lock or status publish balanced")
+	unit.air_sink = 1.0
+	h._check(published.call(), "Original air sink independently publishes unbalanced")
+	unit.position.y = threshold - .001
+	h._check(not published.call(), "Original drones below the altitude threshold never publish unbalanced")
+	unit.position.y = threshold
+	h._check(published.call(), "Original exact drone altitude threshold remains unbalanced")
+	unit.flying = false
+	h._check(not published.call(), "Grounded units publish balanced")
+	unit.flying = true
+	unit.hp = 0
+	h._check(not published.call(), "Dead units publish balanced")
+	clear.call()
+	unit.lift_lock_until = 10.0
+	h._check(not published.call(), "Original lift lock ends at its exact deadline")
+	unit.lift_lock_until = 10.1
+	h._check(published.call(), "Original lift lock independently publishes unbalanced")
+	clear.call()
+	unit.status.unbalanced_until = 10.04
+	h._check(not published.call(), "Original rounded-zero unbalLeft publishes balanced")
+	unit.status.unbalanced_until = 10.05
+	h._check(published.call(), "Original rounded unbalLeft independently publishes unbalanced")
+	simulation.free()
+
+static func _snapshot_acceptance(h: Node) -> void:
+	var authority := create(h)
+	var replica := create(h)
+	replica.authoritative = false
+	replica.clock = 0
+	replica.world = BattleWorld.new()
+	replica.add_child(replica.world)
+	var session := SessionScript.new()
+	h.add_child(session)
+	session.active = true
+	session.started = true
+	session.round_id = 3
+	session.launch_announced = true
+	session.simulation = replica
+	var controls := ControlStatusState.new()
+	controls.configure(Content.balance.controls.controlEffects)
+	var notices: Array = []
+	var clocks: Array = []
+	var heard: Array = [0]
+	controls.notice.connect(func(text): notices.append(text))
+	session.snapshot_heard.connect(func(): heard[0] += 1)
+	session.state_received.connect(func(state):
+		clocks.append(state.clock)
+		controls.observe(state.control_status))
+	var packet := func(clock: float, serial: int, frozen: float) -> Dictionary:
+		var state: Dictionary = bytes_to_var(var_to_bytes(authority.snapshot()))
+		state.erase("weather")
+		state.clock = clock
+		state.control_status = {"freezeLeft": frozen}
+		state["_match"] = 3
+		state["_serial"] = serial
+		return state
+	session._snapshot(packet.call(5.0, 4, 1.0))
+	session._snapshot(packet.call(4.0, 3, 0.0))
+	session._snapshot(packet.call(5.0, 4, 1.0))
+	h._check(clocks == [5.0] and replica.clock == 5.0, "Older and duplicate snapshots reach no presentation consumer")
+	h._check(notices.size() == 1 and heard[0] == 3, "Rejected snapshots rearm no notice but still prove delivery to the watchdog")
+	session._snapshot(packet.call(5.0, 5, 0.0))
+	session._snapshot(packet.call(6.0, 6, 1.0))
+	h._check(clocks == [5.0, 5.0, 6.0] and notices.size() == 2, "A later equal-clock publication and valid false/true edges still notify")
+	var next := create(h)
+	next.authoritative = false
+	next.clock = 0
+	next.world = BattleWorld.new()
+	next.add_child(next.world)
+	session.simulation = next
+	session.round_id = 4
+	var opening: Dictionary = packet.call(0.0, 0, 0.0)
+	opening["_match"] = 4
+	session._snapshot(opening)
+	h._check(clocks.back() == 0.0 and next.clock == 0.0, "A new round accepts its initial clock and serial")
+	h.remove_child(session)
+	session.free()
+	authority.free()
+	replica.free()
+	next.free()
+
+static func _relay_activation(h: Node) -> void:
+	var simulation := create(h)
+	var world := RelayWorld.new()
+	simulation.world = world
+	simulation.add_child(world)
+	var main := MainScript.new()
+	main.simulation = simulation
+	var position := Vector3(3, 0, -4)
+	main._relay_activation({"type": "hurt", "position": position, "side": "STEEL"})
+	h._check(world.effects.sparks.is_empty() and world.height_queries.is_empty(), "Only the original relay event emits the activation effect")
+	for side: String in ["STEEL", "SWARM", ""]:
+		world.effects.sparks.clear()
+		main._relay_activation({"type": "relay", "position": position, "side": side})
+		var color: int = Color(Content.constants.SIDES[side].color).to_rgba32() >> 8 if not side.is_empty() else 0x66ffe0
+		h._check(world.effects.sparks == [[Vector3(3, 11.5, -4), 8.0, color]], "Original relay starburst height, radius and side colour")
+	h._check(world.height_queries.back() == Vector2(3, -4), "Original relay effect queries terrain at its own point")
+	world.effects.free()
+	main.room_world_resources.free()
+	main.room_world_prebuild.free()
+	main.free()
+	simulation.free()

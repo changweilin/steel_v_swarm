@@ -8,6 +8,7 @@ const FORMAT := Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM2_SHIFT
 const TEMPLATE := "res://shaders/source_vertex_color.gdshader.template"
 
 static var shaders: Dictionary = {}
+static var materials: Dictionary = {}
 
 static func encode(values: Variant, color_size: int, vertices: int) -> Dictionary:
 	if not (values is Array or values is PackedFloat64Array) or color_size not in [3, 4] or vertices <= 0 or values.size() != vertices * color_size:
@@ -43,6 +44,11 @@ static func material(base: StandardMaterial3D, float_colors := true) -> ShaderMa
 	var shader := _shader(base, float_colors)
 	if shader == null:
 		return null
+	# Godot caps material RIDs at 262,144 and one authored world holds over 230,000
+	# surfaces, so equal surfaces share a resource. Consumers copy before changing it.
+	var key := _material_key(base, shader)
+	if materials.has(key):
+		return materials[key]
 	var result := ShaderMaterial.new()
 	result.shader = shader
 	result.render_priority = base.render_priority
@@ -59,7 +65,17 @@ static func material(base: StandardMaterial3D, float_colors := true) -> ShaderMa
 		result.set_shader_parameter("uSourceEmissionEnergy", base.emission_energy_multiplier)
 	if base.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR:
 		result.set_shader_parameter("uSourceAlphaScissor", base.alpha_scissor_threshold)
+	materials[key] = result
 	return result
+
+static func _material_key(base: StandardMaterial3D, shader: Shader) -> String:
+	var fields: Array = [shader.get_instance_id(), base.render_priority, base.albedo_color, base.roughness,
+		base.metallic, base.metallic_specular, base.emission, base.emission_energy_multiplier, base.alpha_scissor_threshold,
+		base.albedo_texture.get_instance_id() if base.albedo_texture != null else 0]
+	for property: StringName in base.get_meta_list():
+		var value: Variant = base.get_meta(property)
+		fields.append_array([property, value.get_instance_id() if value is Object else value])
+	return var_to_bytes(fields).hex_encode()
 
 static func _shader(base: StandardMaterial3D, float_colors: bool) -> Shader:
 	var modes: Array[String] = ["blend_add" if base.blend_mode == BaseMaterial3D.BLEND_MODE_ADD else "blend_mix"]

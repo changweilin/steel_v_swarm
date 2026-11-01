@@ -75,13 +75,22 @@ Requests from the published capture:
       values need a published tape restored before `_decode`. `tests/numeric_tape.tscn`
       guards it. `tests/source_json.gd` must assert the restored value: bare
       `JSON.parse_string` still rounds 1,884 of the fixture's 13,280 words.
+      SN8's request for a world-colour tape is declined: source colours are Float32, so
+      `_float32_colors` recovers their exact bits, while a tape would change the chunk
+      format and force a recapture of every bundle for no output change. Doubles that
+      are not Float32-exact still need a tape.
     - Colours: for each surface with `vertexColors`, store
       `SourceCelVertexColors.encode(colors, colorSize, vertices).value` in
       `SourceCelVertexColors.ARRAY_SLOT` with `FORMAT` in the surface flags, instead of
       `ARRAY_COLOR`, and use `SourceCelVertexColors.material(base)`. Instance-tinted
       surfaces without vertex colours use `material(base, false)`. `tests/worlds.gd`
       compares that attribute byte-for-byte; remove the importer rejection and the
-      1/255 tolerance. Each vertex grows from 4 to 16 colour bytes. These are
+      1/255 tolerance. Each vertex grows from 4 to 16 colour bytes. `material()` returns
+      one shared resource per equal surface state, because a world holds over 230,000
+      surfaces and Godot caps material RIDs at 262,144 (exceeding it crashes). Never
+      mutate its result: `tools/import_worlds.gd` still writes `render_priority` for
+      `entry.water`, which is safe only while those surfaces stay marine. Mesh RIDs share
+      that cap and a Berlin world uses 231,753, so two loaded worlds cannot coexist. These are
       `ShaderMaterial`s, so `albedo_color` consumers must use the `uSourceAlbedo`
       parameter: `scripts/scene_damage_geometry.gd` skips its tint copy, while the
       `waterfall_sheet` path in `scripts/scenery_motion.gd` and the typed reads in
@@ -102,6 +111,23 @@ Requests from the published capture:
 Remaining inbound requests follow their files: `shaders/` and shared numeric/font
 adapters go to B, simulation and unit contracts to C, session and snapshot
 contracts to D, and `scripts/main.gd` or `project.godot` contracts to E.
+
+Accepted contracts awaiting their consumers:
+
+- **Terra:** `SourceNumeric.hypot(x, y)` matches Chromium 151 `Math.hypot` bits
+  (`tests/source_numeric.tscn`, corpus from `tools/source_numeric_capture.mjs`); bind it
+  in `ViewLockState.advance` and `MinimapVision.shadows`. Browser `Math.sin`/`cos` stays
+  open: Chromium and Node disagree, so a native binding needs Chromium's own algorithm.
+- **Sol:** a replica's `state_received` fires only for an accepted snapshot; rejected
+  packets reach `Session.snapshot_heard`. `control_status.unbalanced` is published.
+- **Sol:** `command.move_mag` carries the stick's double magnitude for `InputRules.moving`.
+  Relay activation reaches `CombatEffects.spark` from `scripts/main.gd`.
+- **Models/SN4 — civilian surface materials:** `MeshInstance3D` releases a surface override
+  before its render instance, so `scripts/civilian_body_builder.gd::_part` keeps each one
+  alive in mesh metadata; metadata on the part root is not enough. The user directed this
+  one line past the SN4 lease; keep it when SN4 publishes that file.
+- `tests/run.gd` fails a selected suite whose `run` takes other arguments, so
+  `tests/audio_{move,clip}_suite.gd` stay under `tests/audio_lifecycle.tscn`.
 
 ## Render fidelity
 
@@ -294,9 +320,13 @@ contracts to D, and `scripts/main.gd` or `project.godot` contracts to E.
   populated runtime/render/lifecycle checks and both transports. Audit true
   source event/frame order and platform behavior; focused math or storage checks
   cannot substitute for complete match comparison. Resolve new failures before
-  calling a path verified. Current `tests/run.tscn` cannot complete cleanly with
-  failed world setup and owner-specific geometry/audio/scenery differences;
-  engine errors remain failed acceptance even when a component's assertions pass.
+  calling a path verified. Current `tests/run.tscn` completes on a real GL driver with
+  the `berlin_1` worlds; its 180 failures belong to Sol audio and mobile preferences,
+  SN4 body streaming and missing campaign terrain, and `burst_suite` stops at its
+  script error. `--smoke` needs SN8's `berlin_swap_5_autumn`. Baseline ENet and WebSocket
+  pass with empty error logs when a room rolls a generated world; until SN8 finishes, a
+  roll of a missing `berlin_swap_1_*` fails the run at preload.
+  Engine errors remain failed acceptance even when a component's assertions pass.
   Never normalize bytes inside the runtime hash check to hide a consumer mismatch.
   Native fixture consumers must use the generated
   section plan and exact numeric tapes, preserving source order and tolerances.

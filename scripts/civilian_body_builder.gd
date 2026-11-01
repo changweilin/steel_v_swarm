@@ -109,6 +109,8 @@ static func _part(key: String, appearance: Dictionary) -> Dictionary:
 					material.emission = _color(appearance, tokens.emission)
 				materials[id] = material
 			mesh.set_surface_override_material(index, materials[id])
+			# MeshInstance3D drops its overrides before freeing its render instance.
+			mesh.set_meta("retained_material_" + str(index), materials[id])
 	return {"root": root, "bindings": _decode(profile.bindings, nodes)}
 
 static func _color(appearance: Dictionary, token: Dictionary) -> Color:

@@ -4,6 +4,7 @@ signal lobby_changed
 signal battle_started(config: Dictionary, roster: Array)
 signal battle_launched
 signal state_received(state: Dictionary)
+signal snapshot_heard
 signal body_event_received(event: Dictionary)
 signal status_changed(key: String)
 signal stopped
@@ -1089,6 +1090,8 @@ func _state_for(player: int) -> Dictionary:
 	var member: Dictionary = seats.members.get(player, {})
 	var state := simulation.snapshot(player, String(member.get("side", "")))
 	state["_match"] = round_id
+	simulation.snapshot_serial += 1
+	state["_serial"] = simulation.snapshot_serial
 	return state
 
 func broadcast_body_event(event: Dictionary) -> void:
@@ -1126,8 +1129,9 @@ func _snapshot(data: Dictionary) -> void:
 		pending_snapshot = data
 		return
 	if simulation != null:
-		simulation.apply_snapshot(data)
-		state_received.emit(data)
+		snapshot_heard.emit()
+		if simulation.apply_snapshot(data):
+			state_received.emit(data)
 
 func _on_disconnected(peer: int) -> void:
 	if not active or closing_transport or not is_authority():

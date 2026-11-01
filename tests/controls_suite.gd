@@ -42,6 +42,8 @@ static func run(h: Node, fixtures: Dictionary) -> void:
 		h._check(angles.distance_to(Vector2(item.result[0], item.result[1])) < 0.00001, "Original mouse look freeze/inversion/pitch clamp")
 	for item: Dictionary in fixtures.controlsMoving:
 		h._check(InputRules.moving({"move": Vector2(item.motion[0], item.motion[1]), "jump_held": item.held, "vertical": item.vertical}) == bool(item.result), "Original move-input threshold and held vertical keys")
+	h._check(InputRules.moving({"move": Vector2(.02, 0), "move_mag": .02 + 1e-12}) and not InputRules.moving({"move": Vector2(.03, 0), "move_mag": .02}),
+		"Original move threshold reads the double stick magnitude, not the published Float32 vector")
 	for item: Dictionary in fixtures.controlsNumpad:
 		var change := Vector2.ZERO if item.paused else InputRules.numpad(item.keys) * float(Content.balance.controls.numpadLookSpeed) * float(item.delta)
 		if item.result.is_empty():

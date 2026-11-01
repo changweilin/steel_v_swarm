@@ -4,7 +4,7 @@ func _run() -> void:
 	var capture: Dictionary = Content.read_json("res://tests/fixtures/visual_preferences.json")
 	_check(capture.get("formatVersion") == 1 and capture.get("source") is Dictionary and capture.get("fixtures") is Dictionary,
 		"Capture original visual preference programs before native verification")
-	if not failures.is_empty():
+	if failures > 0:
 		_finish_visuals()
 		return
 	var source: Dictionary = capture.source
@@ -15,7 +15,7 @@ func _run() -> void:
 	for path: String in source.sourceInputs:
 		_check(provenance.get("inputs", {}).get(path) == source.sourceInputs[path], "Original visual input matches imported source: " + path)
 	_check(capture.get("metadata") == Content.balance.get("visual"), "Native visual catalog retains the exact original declarations")
-	if not failures.is_empty():
+	if failures > 0:
 		_finish_visuals()
 		return
 	VisualTests.run(self, capture.fixtures)
@@ -48,5 +48,5 @@ func _persistence() -> void:
 	_check(DirAccess.remove_absolute(ProjectSettings.globalize_path(path)) == OK, "Native visual persistence fixture cleans up its own file")
 
 func _finish_visuals() -> void:
-	print("VISUAL_PREFERENCES assertions=", assertions, " failures=", failures.size())
-	get_tree().quit(0 if failures.is_empty() else 1)
+	print("VISUAL_PREFERENCES assertions=", assertions, " failures=", failures)
+	get_tree().quit(0 if failures == 0 else 1)

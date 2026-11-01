@@ -24,6 +24,11 @@ func _height(x: float, z: float, start_y: float, end_y: float, mask: int, exclud
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
 	return hit.position.y if not hit.is_empty() else null
 
+func _deck_references_valid(source: Dictionary) -> bool:
+	var deck_references: Variant = source.get("deckReferences")
+	var provenance: Variant = source.get("source")
+	return deck_references is Dictionary and deck_references.get("inputs") is Dictionary and provenance is Dictionary and provenance.get("inputs") is Dictionary and deck_references.get("sourceFingerprint") is String and deck_references.sourceFingerprint == provenance.get("fingerprint") and deck_references.inputs.get("public/js/biomes.js") is String and deck_references.inputs["public/js/biomes.js"] == provenance.inputs.get("public/js/biomes.js")
+
 func _run() -> void:
 	support_probe = BattleUnit.new()
 	add_child(support_probe)
@@ -51,6 +56,10 @@ func _run() -> void:
 		var source: Dictionary = Content.read_json("res://data/worlds/" + file.get_basename() + ".json")
 		_check(WorldVariant.matches_identity(data.source.get("identity", {}), required[path]), file + ": original map/team/season identity matches the selected resource")
 		_check(data.source == source.source, file + ": native provenance matches the verified source bundle")
+		var altered_fp := {"source": source.get("source", {}), "deckReferences": {"sourceFingerprint": "0".repeat(64), "inputs": source.get("deckReferences", {}).get("inputs", {})}}
+		var altered_biomes := {"source": source.get("source", {}), "deckReferences": {"sourceFingerprint": source.get("deckReferences", {}).get("sourceFingerprint", ""), "inputs": {"public/js/biomes.js": "0".repeat(64)}}}
+		_check(_deck_references_valid(source) and not _deck_references_valid(altered_fp) and not _deck_references_valid(altered_biomes),
+			file + ": layered-deck reference provenance matches the captured world bundle")
 		_check(data.minimap_base != null and source.get("minimapBase") is Dictionary, file + ": original minimap terrain raster is present")
 		if data.minimap_base != null and source.get("minimapBase") is Dictionary:
 			var minimap_images := SourceTextureImages.new()
@@ -103,8 +112,10 @@ func _run() -> void:
 		await get_tree().physics_frame
 		var map_id: String = required[path].map
 		var team_size := str(int(required[path].teamSize))
-		var map_entry: Dictionary = (Content.maps + Content.campaign.get("maps", [])).filter(func(entry): return entry.id == map_id)[0]
-		var variant: Dictionary = map_entry.variants[team_size]
+		var base_id := map_id.trim_suffix("_swap")
+		var map_entry: Dictionary = (Content.maps + Content.campaign.get("maps", [])).filter(func(entry): return entry.id == base_id)[0]
+		var variants: Dictionary = map_entry.swapped_variants if map_id.ends_with("_swap") else map_entry.variants
+		var variant: Dictionary = variants[team_size]
 		for structure in variant.structures:
 			_check(_height(structure.position[0], structure.position[2], data.ceiling + 100, data.min_height - 100, 8) != null, file + ": structure has a verified standing surface")
 		for side in variant.hero_spawns:
@@ -274,8 +285,8 @@ func _verify_mesh(file: String, node: GeometryInstance3D, source: Dictionary, ma
 	for surface in range(mesh.get_surface_count()):
 		var arrays := mesh.surface_get_arrays(surface)
 		if not surfaces[surface].get("vertexColors", false):
-			_check(arrays[Mesh.ARRAY_COLOR] == null or arrays[Mesh.ARRAY_COLOR].is_empty(), file + ": source-disabled vertex colours cannot multiply native instance colours")
-		var material: Material = node.get_active_material(surface) if node is MeshInstance3D else mesh.surface_get_material(surface)
+			_check((arrays[Mesh.ARRAY_COLOR] == null or arrays[Mesh.ARRAY_COLOR].is_empty()) and (arrays[SourceCelVertexColors.ARRAY_SLOT] == null or arrays[SourceCelVertexColors.ARRAY_SLOT].is_empty()), file + ": source-disabled vertex colours cannot multiply native instance colours")
+		var material: Material = node.material_override if node.material_override != null else (node.get_active_material(surface) if node is MeshInstance3D else mesh.surface_get_material(surface))
 		if surfaces[surface].has("cel"):
 			_check(material != null and SourceCelData.material_source(material) == surfaces[surface].cel,
 				file + ": original material cel definitions and typed uniforms preserved")
@@ -304,12 +315,25 @@ func _verify_mesh(file: String, node: GeometryInstance3D, source: Dictionary, ma
 			indices.append_array(PackedInt32Array([int(triangles[offset]), int(triangles[offset + 2]), int(triangles[offset + 1])]))
 		_check(arrays[Mesh.ARRAY_INDEX] == indices, file + ": original reflected/source winding converted")
 		if not source.colors.is_empty() and surfaces[surface].get("vertexColors", false):
-			var colors: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
 			var components := int(source.get("colorSize", 3))
-			var error := 0.0
-			for offset in range(0, source.colors.size(), components):
-				var color := colors[offset / components]
-				for channel in range(components):
-					error = maxf(error, absf(color[channel] - float(source.colors[offset + channel])))
-			_check(error <= 1.0 / 255.0 + 0.000001, file + ": original RGB/RGBA surface colors within native precision")
+			if surfaces[surface].has("marine"):
+				var colors: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
+				var error := 0.0
+				for offset in range(0, source.colors.size(), components):
+					var color := colors[offset / components]
+					for channel in range(components):
+						error = maxf(error, absf(color[channel] - float(source.colors[offset + channel])))
+				_check(error <= 1.0 / 255.0 + 0.000001, file + ": original RGB/RGBA surface colors within native precision")
+			else:
+				var expected_colors := PackedFloat32Array()
+				expected_colors.resize(vertices.size() * 4)
+				for vertex in range(vertices.size()):
+					expected_colors[vertex * 4 + 3] = 1.0
+					for channel in range(components):
+						expected_colors[vertex * 4 + channel] = float(source.colors[vertex * components + channel])
+				var actual_colors: Variant = arrays[SourceCelVertexColors.ARRAY_SLOT]
+				_check((arrays[Mesh.ARRAY_COLOR] == null or arrays[Mesh.ARRAY_COLOR].is_empty())
+					and actual_colors is PackedFloat32Array
+					and (actual_colors as PackedFloat32Array).to_byte_array() == expected_colors.to_byte_array(),
+					file + ": original RGB/RGBA surface colors preserved in Float32 attribute")
 

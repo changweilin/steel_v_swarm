@@ -9,7 +9,7 @@ var angles: Array = [0.0, 0.0, 0.0]
 var angle := 0.0
 var paused := false
 var elapsed := 0.0
-var materials: Array[StandardMaterial3D] = []
+var materials: Array[Material] = []
 var retired := false
 var ready := false
 var generation := 0
@@ -101,10 +101,10 @@ func configure(node: Node3D, source: Dictionary, phase: Variant = null) -> bool:
 	if source.kind == "waterfall_sheet":
 		for mesh: MeshInstance3D in node.find_children("*", "MeshInstance3D", true, false):
 			# Opacity belongs to this waterfall, never to the saved shared scene.
-			var overrides: Array[StandardMaterial3D] = []
+			var overrides: Array[Material] = []
 			for surface in range(mesh.mesh.get_surface_count()):
-				var original := mesh.get_active_material(surface) as StandardMaterial3D
-				if original == null:
+				var original := mesh.get_active_material(surface)
+				if not (original is StandardMaterial3D or (original is ShaderMaterial and original.get_shader_parameter("uSourceAlbedo") is Color)):
 					push_error("Original waterfall sheet requires its captured native material")
 					return false
 				overrides.append(original.duplicate())
@@ -165,10 +165,17 @@ func advance(delta: float, now: float, weather: Dictionary) -> void:
 			elapsed += delta
 			var index := int(spec.index)
 			size.x = 1 + sin(elapsed * 2.4 + index) * 0.05
-			for material: StandardMaterial3D in materials:
-				var color := material.albedo_color
-				color.a = (0.85 if index == 0 else 0.55) + sin(elapsed * (3 + index)) * 0.1
-				material.albedo_color = color
+			var alpha := (0.85 if index == 0 else 0.55) + sin(elapsed * (3 + index)) * 0.1
+			for material: Material in materials:
+				if material is StandardMaterial3D:
+					var color := (material as StandardMaterial3D).albedo_color
+					color.a = alpha
+					(material as StandardMaterial3D).albedo_color = color
+				else:
+					var shader_material := material as ShaderMaterial
+					var color: Color = shader_material.get_shader_parameter("uSourceAlbedo")
+					color.a = alpha
+					shader_material.set_shader_parameter("uSourceAlbedo", color)
 				if not _current(token):
 					return
 		"waterfall_foam":

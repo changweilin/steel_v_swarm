@@ -19,7 +19,8 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if Session.launch_announced:
 		elapsed += delta
-	if elapsed > 18:
+	# The client launches after the authority and owns this deadline.
+	if not Session.dedicated and elapsed > 18:
 		push_error("NETWORK_MOBILE_TIMEOUT phase=%d forced=%s released=%s free=%s" % [phase, forced_seen, released_seen, free_seen])
 		get_tree().quit(1)
 		return
@@ -27,7 +28,7 @@ func _physics_process(delta: float) -> void:
 		_server_step()
 		return
 	super._physics_process(delta)
-	if simulation == null or not simulation.pilots.has(Session.player_id()):
+	if simulation == null or not Session.launch_announced or not simulation.pilots.has(Session.player_id()):
 		return
 	if not requested and Controls.room == "pad" and touch_controls.visible:
 		requested = true
@@ -41,7 +42,7 @@ func _physics_process(delta: float) -> void:
 		var drag := InputEventScreenDrag.new()
 		drag.index = 3
 		drag.position = point + Vector2(20, -12)
-		Input.parse_input_event(drag)
+		get_viewport().push_input(drag, true)
 		_touch(3, drag.position, false)
 		var expected := Vector2(20, -12) * float(Content.balance.mobile.look.TOUCH_RAD_PX)
 		if Vector2(yaw, pitch).distance_to(before + expected) > 0.00001:
@@ -75,7 +76,7 @@ func _physics_process(delta: float) -> void:
 		get_tree().quit()
 
 func _server_step() -> void:
-	if simulation == null:
+	if simulation == null or not Session.launch_announced:
 		return
 	if fixture_pilot == null:
 		for unit: BattleUnit in simulation.pilots.values():
@@ -112,7 +113,7 @@ func _touch(index: int, point: Vector2, down: bool) -> void:
 	event.index = index
 	event.position = point
 	event.pressed = down
-	Input.parse_input_event(event)
+	get_viewport().push_input(event, true)
 
 func _fail(reason: String) -> void:
 	push_error(reason)

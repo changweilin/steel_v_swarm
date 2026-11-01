@@ -861,6 +861,12 @@ player's position when pausing/resuming.
   in [F1](../flash/MIGRATION.md#ready-for-bounded-implementation). Keep
   `TouchState` release/reentry contracts stable while that task is implemented;
   S11 retains hardware input and populated publication/transport acceptance.
+  Headless clients have no window event callback, so `Input.parse_input_event`
+  never reaches `_input`. `tests/mobile_network.gd` injects through
+  `Viewport.push_input(event, true)`; omitting local coordinates rescales content
+  positions by the 64x64 headless window's stretch transform. Its native drag
+  assertion now passes on both transports; completion is blocked by the snapshot
+  backpressure contract below, not by touch handling.
 - [ ] **S15 — Local feedback:** finish integrated immutable rounded control
   publication, rising-edge notices and replay rejection. Keep the source
   eligibility, silent rejection, optimistic cast/defense and shared fire/cast
@@ -1126,6 +1132,28 @@ them. Remove completed items; no dated checkpoints or copied validation history.
   `ConfigFile.set_value` does not erase the key before `ControlPreferences.normalize`
   clamps `Number(null)` to `0.4`. Apply both Sol test edits together with Opus's
   `refreshFixtureConsumers` update to `data/fixtures.json`.
+- **Opus — snapshot backpressure (`scripts/session.gd::_broadcast_state`):** every
+  peer receives a 66 KB full snapshot at 8 Hz regardless of what it has drained.
+  A populated headless Berlin client (236,084 `MeshInstance3D`) runs at 5-7 FPS,
+  so ENet's shared outgoing queue backs up: `_sync_lobby` on channel 0 took 5.3 s
+  for one settle and over 16 s for the next, timing out `-Mobile` at server
+  phase 2 with the client still holding the earlier room mode. WebSocket reaches
+  `NETWORK_MOBILE_PASS` but the server logs `ERR_OUT_OF_MEMORY` from `wsl_peer.cpp`
+  at `session.gd:1080`, which `tools/test_network.ps1` correctly rejects. Bound
+  queued snapshots per peer without delaying reliable control traffic; retain
+  serial/watchdog and event delivery semantics. On WebSocket, `-Projectiles`,
+  `-Controls`, `-Mobile`, `-Deaths` and `-Blasts` all reach their client pass
+  markers and fail only on this server error. On ENet, `-Projectiles` and
+  `-Blasts` pass while `-Controls`, `-Mobile` and `-Deaths` can exceed the runner's
+  60 s bound; only `-Mobile` has measured lobby latency, so recheck the other two
+  after this fix. Acceptance: all five on both transports with empty server
+  errors, and lobby latency that does not grow with match duration. Do not raise
+  the fixture deadlines or `WEBSOCKET_BUFFER_BYTES`. Each fixture's deadline is
+  client-only because the authority launches about 5 s earlier.
+  Frame cost is shared: `present_bodies`, minimap/damage and
+  `BattleWorld.step_scenery` each take about 30 ms per headless frame and one
+  physics tick about 22 ms. Scenery remains S4 work; the delivery fix must not
+  assume a faster client.
 
 ### Shared-owner contracts required for particle acceptance
 

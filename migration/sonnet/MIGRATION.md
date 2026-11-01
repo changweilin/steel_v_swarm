@@ -73,8 +73,16 @@ rejects the fog scenes. On Linux run real-renderer checks as
   rest for `encode` to reject. `berlin_swap_1_summer` is regenerated end to end (capture,
   provenance, references, native import → `assets/worlds/berlin_swap_1_summer.res`). A scratch
   copy of `tests/worlds.gd` with swap-layout lookup reports exactly 267 failures, all the
-  stale `ARRAY_COLOR` check at `tests/worlds.gd:306-314`; every other check passes. Remaining,
-  all outside this lease: (1) Sol: `tests/worlds.gd:106` finds the map entry with
+  stale `ARRAY_COLOR` check at `tests/worlds.gd:306-314`; every other check passes.
+  `berlin_1_{autumn,spring,summer}` are regenerated the same way
+  (`data/worlds/` and `assets/worlds/` outputs). On a real GL driver (not `--headless`) a scratch
+  copy of `tests/worlds.gd` that skips only the stale colour check at lines 306-314 and reads
+  `node.material_override` before `mesh.surface_get_material` at line 278 passes all three
+  (`WORLD_TEST_PASS`, ~2.58M checks each). The unmodified test fails on them for two test-side
+  reasons: the dummy renderer cannot read `MultiMesh` instances, and non-`surfaces` entries
+  such as `SourceMesh_14` (a `MultiMeshInstance3D`) keep their material in `material_override`,
+  which the mesh-surface lookup misses (~265 "cel definitions" failures).
+  Remaining, all outside this lease: (1) Sol: `tests/worlds.gd:106` finds the map entry with
   `entry.id == map_id`, so every `*_swap_*` bundle crashes; resolve `<id>_swap` through
   `entry.swapped_variants` as `WorldVariant.required` does. (2) Sol/Models: read colours at
   `tests/worlds.gd:306-314` from `ARRAY_CUSTOM2` (exact Float32, no 1/255 tolerance), and bind
@@ -86,7 +94,8 @@ rejects the fog scenes. On Linux run real-renderer checks as
   PowerShell 5.1 `Start-Process -PassThru` leaves `ExitCode` null unless the process handle
   is cached (`$null = $p.Handle`). Not regenerated yet: the other bundles selected by smoke
   and the baseline transports, and `SMOKE_PASS`/transport runs, which wait on (2). The three
-  `berlin_1_*` resources stay unqualified until rerun. `scripts/room_world_resources.gd`,
+  `berlin_1_*` resources are regenerated but stay unqualified until `tests/worlds.gd` and the
+  consumers in (2) are fixed. `scripts/room_world_resources.gd`,
   `scripts/world.gd` and the resources must agree, with no early simulation or fabricated
   map. Acceptance: `tests/worlds.tscn -- --bundle=<bundle>`, `SMOKE_PASS` and both baseline
   transport cases. Run alone.

@@ -100,6 +100,8 @@ var loots: Array[Dictionary] = []
 var hazard_blockers: Array = []
 var mines: Array[Dictionary] = []
 var relay_states: Array[Dictionary] = []
+# Highest serial published by the authority or accepted by this round's replica.
+var snapshot_serial := -1
 var airdrops: Array[Dictionary] = []
 var next_airdrop := 0.0
 var camps: Array[Dictionary] = []
@@ -3772,6 +3774,14 @@ func flight_balance_state(unit: BattleUnit) -> Dictionary:
 		"unbalance_left": maxf(0, float(unit.status.get("unbalanced_until", 0)) - clock),
 		"defending": unit.defending, "shield": unit.shield}
 
+# The source client derives _unbalanced() from its snapshot-rounded unbalLeft.
+func _owner_control_status(viewer: BattleUnit) -> Dictionary:
+	var result := ActorSnapshot.control_status(viewer, clock)
+	var balance := flight_balance_state(viewer)
+	balance.unbalance_left = result.unbalLeft
+	result.unbalanced = MovementRules.flight_unbalanced(balance, clock)
+	return result
+
 func _record_air_sink(target: BattleUnit, amount: float) -> void:
 	if not target.is_hero() or not target.flying or amount <= 0:
 		return
@@ -5489,7 +5499,7 @@ func snapshot(peer: int = 0, recipient_side: Variant = null) -> Dictionary:
 		"missiles": _missile_snapshot(), "weapon_pose": _weapon_pose_snapshot(viewer),
 		"projectile_view": projectile_view(viewer),
 		"view_velocity": viewer.velocity if viewer != null else Vector3.ZERO,
-		"control_status": ActorSnapshot.control_status(viewer, clock) if viewer != null else {},
+		"control_status": _owner_control_status(viewer) if viewer != null else {},
 		"status_icons": ActorSnapshot.status_icon_details(viewer, clock) if viewer != null else {},
 		"movement_feedback": {"slope_blocked": viewer.slope_blocked if viewer != null and viewer.alive() and not over else false},
 		"blast_serial": viewer.blast_applied_serial if viewer != null else 0,
@@ -5634,9 +5644,12 @@ func _control_snapshot(viewer: BattleUnit) -> Dictionary:
 		"ok": control.ok, "aa": control.aa, "high": control.high, "close": control.close, "side": viewer.side,
 		"elevation": CockpitPose.barrel_elevation(control.velocity, control.direction)}
 
-func apply_snapshot(data: Dictionary) -> void:
-	if authoritative or data.clock < clock:
-		return
+# Returns false for a snapshot that must not reach any presentation consumer.
+func apply_snapshot(data: Dictionary) -> bool:
+	var serial := int(data.get("_serial", snapshot_serial + 1))
+	if authoritative or data.clock < clock or serial <= snapshot_serial:
+		return false
+	snapshot_serial = serial
 	clock = data.clock
 	if is_nan(body_clock_offset) and data.get("body_time") is float and is_finite(float(data.body_time)):
 		# Align once per room; snapshot jitter cannot rewind the local animation clock.
@@ -5719,6 +5732,7 @@ func apply_snapshot(data: Dictionary) -> void:
 		over = true
 		winner = data.winner
 		result.emit(winner)
+	return true
 
 func present_world_events(received: Array) -> void:
 	if Session.dedicated or world == null:

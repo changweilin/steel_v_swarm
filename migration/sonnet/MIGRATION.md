@@ -1,7 +1,7 @@
 # Opus-unblocking fixes — outstanding work
 
 Read [AGENTS.md](AGENTS.md). Select one task; its exclusive files are in the root
-lease table. SN4 and SN6 are blocked as recorded. SN8 waits for Opus O25/O26.
+lease table. SN4 and SN6 are blocked as recorded. SN8 waits for the colour consumers it records.
 SN9 runs last. Each task records only its current failure.
 
 Local tools: process-local `SVS_SOURCE=C:/Users/user/Documents/app/steel_vs_swarm`,
@@ -24,9 +24,17 @@ rejects the fog scenes. On Linux run real-renderer checks as
   removed caster anchors at the effect point, and carrier casts defer their
   destination effect until delivery. Never infer a generic effect from a passing
   publication fixture. Acceptance: a source-based native fixture for both branches,
-  with `tests/cast_events_suite.gd` unchanged. Blocked: `public/js/game.js` and
-  `castfx.js` are absent from this checkout, so neither branch can be derived;
-  run it where `SVS_SOURCE` exists and never substitute a generic effect.
+  with `tests/cast_events_suite.gd` unchanged. Blocked: the source is present now
+  (`game.js:5311-5400` `cast_start`/`cast`, `5401-5411` `atkfx`), but the consumer
+  needs `spawnCastFx`'s per-character data, which has no native counterpart:
+  `PROFILE_ROWS`/`PROFILE_SIGNATURES`/`CFX` (`castfx.js:1780-1904`), `PARTICLE_RECIPES`
+  (`castparticles.js`) and `spawnAuthoredCast` (`forge/combatCast.js`). A
+  `tools/*_references.mjs` importer, its `data/` output and a fixture producer sit
+  outside this lease, and the native simulation emits `ability_arrive`, not `atkfx`
+  (`simulation.gd:4440`). Request to Opus/Sol: publish that profile data and its
+  source-based fixture; this lease then adds only the anchor (`casterPos` null →
+  report `point`, `groundY` from the caster height) and `carrier` deferral. A generic
+  effect stays forbidden.
 
 ## Test fixtures
 
@@ -55,16 +63,41 @@ rejects the fog scenes. On Linux run real-renderer checks as
 
 ## Generated content
 
-- [ ] **SN8 — Baseline authored world:** blocked by O25 and O26. After their
-  contracts are accepted, bind them in `tools/source_world_meshes.gd` and
-  `tools/import_worlds.gd`, then regenerate the bundles selected by smoke and the
-  baseline transports through `tools/migrate_worlds.ps1`. All `berlin_1_*` captures
-  lack `deckProbes`, so `tools/import_worlds.tscn` rejects them until the corrected
-  `tools/world_references.mjs` reruns; the three existing `berlin_1_*` native
-  resources are unqualified. `scripts/room_world_resources.gd`, `scripts/world.gd` and
-  the generated seasonal resources must agree, with no early simulation or
-  fabricated map. The complete manifest stays in Sol S1. Acceptance:
-  `tests/worlds.tscn -- --bundle=<bundle>`, `SMOKE_PASS` and both baseline
+- [ ] **SN8 — Baseline authored world:** `tools/import_worlds.gd` now refuses a bundle
+  whose `deckReferences.sourceFingerprint` or `inputs["public/js/biomes.js"]` differs from
+  `source` (verified on `berlin_1_autumn`, which lacks `deckProbes`), and binds O26B's colours:
+  `SourceCelVertexColors.encode` into `ARRAY_CUSTOM2` and `material()` for vertex-colour
+  surfaces (marine surfaces keep `ARRAY_COLOR`). Godot's JSON parser moves inline colour
+  doubles by several ulps (1.3e-15 relative seen; the source values are all Float32-exact),
+  so `_float32_colors` snaps values within 1e-12 of their Float32 neighbour and leaves the
+  rest for `encode` to reject. `berlin_swap_1_summer` is regenerated end to end (capture,
+  provenance, references, native import → `assets/worlds/berlin_swap_1_summer.res`). A scratch
+  copy of `tests/worlds.gd` with swap-layout lookup reports exactly 267 failures, all the
+  stale `ARRAY_COLOR` check at `tests/worlds.gd:306-314`; every other check passes.
+  `berlin_1_{autumn,spring,summer}` are regenerated the same way
+  (`data/worlds/` and `assets/worlds/` outputs). On a real GL driver (not `--headless`) a scratch
+  copy of `tests/worlds.gd` that skips only the stale colour check at lines 306-314 and reads
+  `node.material_override` before `mesh.surface_get_material` at line 278 passes all three
+  (`WORLD_TEST_PASS`, ~2.58M checks each). The unmodified test fails on them for two test-side
+  reasons: the dummy renderer cannot read `MultiMesh` instances, and non-`surfaces` entries
+  such as `SourceMesh_14` (a `MultiMeshInstance3D`) keep their material in `material_override`,
+  which the mesh-surface lookup misses (~265 "cel definitions" failures).
+  Remaining, all outside this lease: (1) Sol: `tests/worlds.gd:106` finds the map entry with
+  `entry.id == map_id`, so every `*_swap_*` bundle crashes; resolve `<id>_swap` through
+  `entry.swapped_variants` as `WorldVariant.required` does. (2) Sol/Models: read colours at
+  `tests/worlds.gd:306-314` from `ARRAY_CUSTOM2` (exact Float32, no 1/255 tolerance), and bind
+  `scripts/{scenery_motion,fire_presentation,mine_presentation}.gd` and the tint copy at
+  `scripts/scene_damage_geometry.gd:103` to `uSourceAlbedo` (the `ShaderMaterial` breaks their
+  typed `StandardMaterial3D` reads). (3) Opus lane A: publish a numeric tape for inline
+  world-chunk colours (`SourceFixtureSections.restore_numbers`) so the snap tolerance can go.
+  (4) `tools/migrate_worlds.ps1` reports "Source world selection failed": under Windows
+  PowerShell 5.1 `Start-Process -PassThru` leaves `ExitCode` null unless the process handle
+  is cached (`$null = $p.Handle`). Not regenerated yet: the other bundles selected by smoke
+  and the baseline transports, and `SMOKE_PASS`/transport runs, which wait on (2). The three
+  `berlin_1_*` resources are regenerated but stay unqualified until `tests/worlds.gd` and the
+  consumers in (2) are fixed. `scripts/room_world_resources.gd`,
+  `scripts/world.gd` and the resources must agree, with no early simulation or fabricated
+  map. Acceptance: `tests/worlds.tscn -- --bundle=<bundle>`, `SMOKE_PASS` and both baseline
   transport cases. Run alone.
 
 ## Requests to other owners

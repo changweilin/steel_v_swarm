@@ -11,7 +11,7 @@ static func movement_basis(yaw: float, pitch: float, flight: bool, level_move: b
 	return basis
 
 static func moving(command: Dictionary) -> bool:
-	return command.get("move", Vector2.ZERO).length() > 0.02 or command.get("jump_held", false) or absf(float(command.get("vertical", 0))) > 0
+	return float(command.get("move_mag", command.get("move", Vector2.ZERO).length())) > 0.02 or command.get("jump_held", false) or absf(float(command.get("vertical", 0))) > 0
 
 static func numpad(keys: Dictionary) -> Vector2:
 	var yaw := int(keys.get("Numpad4", false)) - int(keys.get("Numpad6", false)) + int(keys.get("Numpad7", false)) - int(keys.get("Numpad9", false)) + int(keys.get("Numpad1", false)) - int(keys.get("Numpad3", false))

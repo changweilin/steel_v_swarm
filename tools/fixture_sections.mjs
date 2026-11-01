@@ -155,7 +155,9 @@ export async function fixtureConsumers(projectRoot,keys) {
   for(const [path,{text}]of records) {
     const used=new Set();
     for(const match of text.matchAll(/\bfixtures\.([A-Za-z]\w*)/g))if(keys.has(match[1]))used.add(match[1]);
-    for(const match of text.matchAll(/"([A-Za-z]\w*)"/g))if(keys.has(match[1]))used.add(match[1]);
+    // A section read part by part must not be preloaded whole against the encoded-byte budget.
+    const preloaded=text.split('\n').filter(line=>!/\bContent\.(read_fixture_part|fixture_registry)\b/.test(line)).join('\n');
+    for(const match of preloaded.matchAll(/"([A-Za-z]\w*)"/g))if(keys.has(match[1]))used.add(match[1]);
     direct.set(path,used);
     const deps=new Set([...text.matchAll(/res:\/\/(tests\/[A-Za-z0-9_]+\.gd)/g)].map(match=>match[1]).filter(name=>records.has(name)));
     for(const [name,target]of classes)if(target!==path&&new RegExp('\\b'+name+'\\b').test(text))deps.add(target);

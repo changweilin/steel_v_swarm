@@ -3,7 +3,22 @@ import {createHash} from 'node:crypto';
 import {mkdir,mkdtemp,readFile,writeFile} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import test from 'node:test';
-import {partitionFixtures,updateFixtureSections} from '../tools/fixture_sections.mjs';
+import {fixtureConsumers,partitionFixtures,updateFixtureSections} from '../tools/fixture_sections.mjs';
+
+test('a section read part by part is not a whole-section consumer dependency',async()=>{
+  await mkdir('artifacts/fixture-section-tests',{recursive:true});
+  const root=await mkdtemp(resolve('artifacts/fixture-section-tests/case-'));
+  await mkdir(join(root,'tests'));
+  await writeFile(join(root,'tests/run.gd'),'func run():\n\tvar rows: Array = fixtures.whole\n\tvar named: Variant = fixtures.get("quoted")\n');
+  await writeFile(join(root,'tests/stream_suite.gd'),[
+    'func run():',
+    '\tvar section: Dictionary = Content.fixture_registry.get("sections", {}).get("streamed", {})',
+    '\tvar items: Array = Content.read_fixture_part("streamed", 0)',
+    ''].join('\n'));
+  const consumers=await fixtureConsumers(root,new Set(['whole','quoted','streamed']));
+  assert.deepEqual(consumers['tests/run.gd'].direct,['whole','quoted']);
+  assert.deepEqual(consumers['tests/stream_suite.gd'].all,[]);
+});
 
 test('partitioning preserves every source byte, row order, signed zero and nested sequence',async()=>{
   await mkdir('artifacts/fixture-section-tests',{recursive:true});

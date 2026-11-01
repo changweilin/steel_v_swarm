@@ -7,10 +7,12 @@ the canonical importer to validate original hashes, the captured generator and
 offline runtime, native world inputs, required fixture keys and complete outputs
 before publication. Keep that producer identity on every fixture section. Do not
 relabel an older capture after editing the generator or copy source-editor
-`.import` descriptors into the native project:
+`.import` descriptors into the native project. Run no `godot --import` while a
+stage is inside the project: it scans `artifacts/` and writes descriptors there,
+which publication rejects. Move the stage out before reimporting:
 
 ```powershell
-node tools/import_source.mjs C:/path/to/steel_vs_swarm --output-root artifacts/source-capture
+node --max-old-space-size=8192 tools/import_source.mjs C:/path/to/steel_vs_swarm --output-root artifacts/source-capture
 node tools/import_source.mjs C:/path/to/steel_vs_swarm --publish-stage artifacts/source-capture
 godot --headless --path . res://tests/fixture_registry.tscn
 ```

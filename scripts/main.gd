@@ -166,6 +166,8 @@ func _ready() -> void:
 	Session.status_changed.connect(_status)
 	Session.lobby_changed.connect(_update_lobby)
 	Session.state_received.connect(_receive_state)
+	# The source watchdog counts every delivered packet, including one a replica rejects.
+	Session.snapshot_heard.connect(func(): fatal_watchdog.snapshot(_fatal_now()))
 	Session.body_event_received.connect(_body_event_feedback)
 	Session.room_cleared.connect(_room_cleared)
 	Session.room_returned.connect(_room_returned)
@@ -1236,15 +1238,28 @@ func _process(delta: float) -> void:
 		civilian_prompt.text = Content.label("civilian_prompt") % [appearance.occupation, Content.side_info(civilian.special.civil_side).name]
 	pip_view.update_view(simulation, pilot, Session.chosen_side, get_viewport().scaling_3d_scale)
 
+# Original _moveAxis reads the stick's double f/r once mag is positive; the published
+# Vector2 is rounded to Float32 and cannot carry these decisions.
+func _touch_axis() -> Dictionary:
+	var stick: Dictionary = touch_controls.state.move_stick
+	if not float(stick.mag) > 0:
+		return {"f": 0.0, "r": 0.0, "mag": 0.0}
+	var forward := float(stick.y)
+	var right := float(stick.x)
+	return {"f": forward, "r": right, "mag": sqrt(forward * forward + right * right)}
+
 func _advance_spectator(delta: float) -> void:
 	var motion := Vector2(_control("right") - _control("left"), _control("back") - _control("forward"))
 	var touch: Dictionary = touch_controls.held if touch_controls != null and touch_controls.visible else {}
-	if motion == Vector2.ZERO and touch_controls != null and touch_controls.visible:
+	var touched := motion == Vector2.ZERO and touch_controls != null and touch_controls.visible and not overlay_open
+	if touched:
 		motion = touch_controls.state.axis
 	if overlay_open:
 		motion = Vector2.ZERO
 	var axis := {"f": -motion.y, "r": motion.x, "mag": motion.length(),
 		"boost": (_control("sprint") > 0 or touch.get("sprint", false)) and not overlay_open}
+	if touched:
+		axis.merge(_touch_axis(), true)
 	var angles := spectator_camera.advance(clampf(delta, 0, float(Content.balance.view.frameCap)), Vector2(yaw, pitch), axis,
 		(_control("rise") > 0 or touch.get("jump", false)) and not overlay_open,
 		(_control("descend") > 0 or touch.get("dive", false)) and not overlay_open)
@@ -1377,7 +1392,7 @@ func _advance_view(delta: float, pilot: BattleUnit) -> void:
 	if not pilot.flying and not pilot.fluid_environment.get("air", false):
 		for fire: Dictionary in simulation.fire_fields:
 			var radius: float = float(Content.constants.HAZARDS[fire.kind].r) * float(fire.scale)
-			if Vector2(pilot.position.x - fire.position.x, pilot.position.z - fire.position.z).length() <= radius:
+			if SourceNumeric.hypot(pilot.position.x - fire.position.x, pilot.position.z - fire.position.z) <= radius:
 				in_fire = true
 				break
 	scope_state.advance(step, in_fire, float(simulation.weather_dynamics.get("effectiveFog", 0)), pilot.alive())
@@ -1800,14 +1815,17 @@ func _physics_process(delta: float) -> void:
 		return
 	var motion := Vector2(_control("right") - _control("left"), _control("back") - _control("forward")).limit_length()
 	var touch: Dictionary = touch_controls.held if touch_controls != null and touch_controls.visible else {}
+	var move_magnitude := motion.length()
 	if motion == Vector2.ZERO and touch_controls != null and touch_controls.visible:
 		motion = touch_controls.state.axis
+		move_magnitude = _touch_axis().mag
 	var pilot: BattleUnit = simulation.pilots.get(Session.player_id())
 	if pilot != null and not pilot.alive():
 		touch["fire"] = false
 		if Input.get_action_strength("fire") > 0:
 			released_controls["fire"] = true
 	var command := {"move": motion if not overlay_open else Vector2.ZERO,
+		"move_mag": move_magnitude if not overlay_open else 0.0,
 		"yaw": yaw, "pitch": pitch, "vertical": maxf(_control("rise"), float(touch.get("jump", false))) - maxf(_control("descend"), float(touch.get("dive", false))) if not overlay_open else 0.0,
 		"jump": held_jump and not overlay_open, "fire": (_control("fire") > 0 or touch.get("fire", false)) and not overlay_open,
 		"jump_held": (_control("rise") > 0 or touch.get("jump", false)) and not overlay_open,
@@ -1879,6 +1897,15 @@ func _physics_process(delta: float) -> void:
 				print("SMOKE_PASS units=", simulation.units.size(), " wave=", simulation.wave)
 				get_tree().quit()
 
+# Original relay event branch: a starburst 9 above the terrain, independent of the feed.
+func _relay_activation(event: Dictionary) -> void:
+	if event.type != "relay" or Session.dedicated:
+		return
+	var point: Vector3 = event.position
+	var height := simulation.world.ground_height(point.x, point.z) + 9
+	var color := Color(Content.side_info(event.side).color).to_rgba32() >> 8 if not str(event.side).is_empty() else 0x66ffe0
+	simulation.world.ensure_combat_effects().spark(Vector3(point.x, height, point.z), 8, color)
+
 func _receive_state(state: Dictionary) -> void:
 	fatal_watchdog.snapshot(_fatal_now())
 	smoke_state_seen = true
@@ -1925,6 +1952,7 @@ func _receive_state(state: Dictionary) -> void:
 		if is_instance_valid(spectator_camera):
 			for event: Dictionary in state.events:
 				if combat_feed.accept(event):
+					_relay_activation(event)
 					for text: String in CombatFeedState.messages(event, 0, Session.player_id(), ""):
 						feed.push_message(text)
 		return
@@ -1945,6 +1973,7 @@ func _receive_state(state: Dictionary) -> void:
 		pilot.sync_view_camera()
 	for event: Dictionary in state.events:
 		if combat_feed.accept(event):
+			_relay_activation(event)
 			_supply_notice(event, pilot)
 			if event.type == "burn" and int(event.get("actor", 0)) == pilot.entity_id:
 				status_icons.burn_at = Time.get_ticks_usec() / 1000000.0

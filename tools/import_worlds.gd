@@ -59,6 +59,14 @@ func _run() -> void:
 			push_error("Missing original deck references; run tools/world_references.mjs before native packing: " + file)
 			get_tree().quit(1)
 			return
+		var references: Variant = data.get("deckReferences")
+		var biomes_input := "public/js/biomes.js"
+		if not references is Dictionary or not references.get("inputs") is Dictionary or not data.source.get("inputs") is Dictionary \
+				or not references.get("sourceFingerprint") is String or references.sourceFingerprint != data.source.get("fingerprint") \
+				or not references.inputs.get(biomes_input) is String or references.inputs[biomes_input] != data.source.inputs.get(biomes_input):
+			push_error("Original deck references do not belong to this capture; rerun tools/world_references.mjs: " + file)
+			get_tree().quit(1)
+			return
 		for key: String in ["deckThickness", "deckEndTolerance", "roofThickness"]:
 			var value: Variant = data.collision.get(key)
 			if not (value is int or value is float) or not is_finite(float(value)) or float(value) < 0:
@@ -258,7 +266,7 @@ func _run() -> void:
 			var colored: bool = not entry.colors.is_empty() or entry.has("instanceColors")
 			if entry.has("surfaces"):
 				for surface in range(mesh.get_surface_count()):
-					var material := _material(entry.surfaces[surface], colored, entry.has("instanceColors"), entry.get("marineFrame", []), entry.get("receiveShadow", false))
+					var material := _material(entry.surfaces[surface], colored, entry.has("instanceColors"), entry.get("marineFrame", []), entry.get("receiveShadow", false), not entry.colors.is_empty())
 					if material == null:
 						get_tree().quit(1)
 						return
@@ -266,7 +274,7 @@ func _run() -> void:
 						material.render_priority = int(entry.get("renderOrder", 0))
 					mesh.surface_set_material(surface, material)
 			else:
-				var material := _material(entry, colored, entry.has("instanceColors"), entry.get("marineFrame", []), entry.get("receiveShadow", false))
+				var material := _material(entry, colored, entry.has("instanceColors"), entry.get("marineFrame", []), entry.get("receiveShadow", false), not entry.colors.is_empty())
 				if material == null:
 					get_tree().quit(1)
 					return
@@ -584,18 +592,21 @@ func _mesh(entry: Dictionary) -> ArrayMesh:
 	var normals := PackedVector3Array()
 	for i in range(0, entry.normals.size(), 3):
 		normals.append(Vector3(entry.normals[i], entry.normals[i + 1], entry.normals[i + 2]))
+	# Water keeps its marine program and RGBA8 colours; every other active colour is Float32.
 	var colors := PackedColorArray()
-	var uses_vertex_colors := false
+	var marine_colors := false
 	for surface: Dictionary in entry.get("surfaces", [entry]):
-		if surface.get("vertexColors", false):
-			uses_vertex_colors = true
+		if surface.get("vertexColors", false) and surface.has("marine"):
+			marine_colors = true
 			break
-	for i in range(0, entry.colors.size(), color_size):
-		var color := Color(entry.colors[i], entry.colors[i + 1], entry.colors[i + 2], entry.colors[i + 3] if color_size == 4 else 1.0)
-		if uses_vertex_colors and color != color.clamp():
-			push_error("Original world vertex colors outside [0, 1] require accepted float-color shader storage")
-			return null
-		colors.append(color)
+	if marine_colors:
+		for i in range(0, entry.colors.size(), color_size):
+			var color := Color(entry.colors[i], entry.colors[i + 1], entry.colors[i + 2], entry.colors[i + 3] if color_size == 4 else 1.0)
+			if color != color.clamp():
+				push_error("Original water vertex colors outside [0, 1] require accepted float-color shader storage")
+				return null
+			colors.append(color)
+	var float_colors := PackedFloat32Array()
 	var uv := PackedVector2Array()
 	var coordinates: Array = entry.get("uv", [])
 	for i in range(0, coordinates.size(), 2):
@@ -605,8 +616,6 @@ func _mesh(entry: Dictionary) -> ArrayMesh:
 	arrays[Mesh.ARRAY_VERTEX] = positions
 	if normals.size() == positions.size():
 		arrays[Mesh.ARRAY_NORMAL] = normals
-	if colors.size() == positions.size():
-		arrays[Mesh.ARRAY_COLOR] = colors
 	if uv.size() == positions.size():
 		arrays[Mesh.ARRAY_TEX_UV] = uv
 	var flags := 0
@@ -637,7 +646,21 @@ func _mesh(entry: Dictionary) -> ArrayMesh:
 		mesh.set_meta("source_cel_geometry", entry.celGeometry)
 	for surface: Dictionary in entry.get("surfaces", [entry]):
 		# Instance tint remains active without enabling an ignored vertex-colour attribute.
-		arrays[Mesh.ARRAY_COLOR] = colors if surface.get("vertexColors", false) and colors.size() == positions.size() else null
+		var surface_flags := flags
+		arrays[Mesh.ARRAY_COLOR] = null
+		arrays[SourceCelVertexColors.ARRAY_SLOT] = null
+		if surface.get("vertexColors", false) and entry.colors.size() == positions.size() * color_size:
+			if surface.has("marine"):
+				arrays[Mesh.ARRAY_COLOR] = colors
+			else:
+				if float_colors.is_empty():
+					var encoded := SourceCelVertexColors.encode(_float32_colors(entry.colors), color_size, positions.size())
+					if not encoded.ok:
+						push_error(encoded.error)
+						return null
+					float_colors = encoded.value
+				arrays[SourceCelVertexColors.ARRAY_SLOT] = float_colors
+				surface_flags |= SourceCelVertexColors.FORMAT
 		arrays[Mesh.ARRAY_TEX_UV] = uv if uv.size() == positions.size() else null
 		if surface.has("texture"):
 			var texture: Dictionary = surface.texture
@@ -659,10 +682,24 @@ func _mesh(entry: Dictionary) -> ArrayMesh:
 		for i in range(0, surface.index.size(), 3):
 			indices.append_array(PackedInt32Array([int(surface.index[i]), int(surface.index[i + 2]), int(surface.index[i + 1])]))
 		arrays[Mesh.ARRAY_INDEX] = indices
-		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, flags)
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, surface_flags)
 	return mesh
 
-func _material(spec: Dictionary, colored: bool, instance_colors: bool, source_frame: Array, receive_shadow: bool) -> Material:
+# The source stores Float32 colours, but Godot's decimal parser accumulates digits
+# and can move an inline double by several ulps (1.3e-15 relative observed). Snap
+# only values within 1e-12 of their Float32 neighbour, four orders below the 6e-8
+# half-spacing of Float32; anything else stays unchanged so
+# SourceCelVertexColors.encode rejects it.
+func _float32_colors(values: Array) -> PackedFloat64Array:
+	var narrowed := PackedFloat32Array(values)
+	var result := PackedFloat64Array(values)
+	for index in range(result.size()):
+		var exact := narrowed[index]
+		if absf(result[index] - exact) <= absf(exact) * 1e-12:
+			result[index] = exact
+	return result
+
+func _material(spec: Dictionary, colored: bool, instance_colors: bool, source_frame: Array, receive_shadow: bool, vertex_data := false) -> Material:
 	var material := StandardMaterial3D.new()
 	if spec.has("cel"):
 		if not cel_data.attach(material, spec.cel):
@@ -711,6 +748,9 @@ func _material(spec: Dictionary, colored: bool, instance_colors: bool, source_fr
 		if not binding.configure(surface, spec.marine, marine_source, marine_depth_field) or not binding.configure_geometry(source_frame, receive_shadow):
 			return null
 		return binding.material
+	if material.vertex_color_use_as_albedo:
+		# Consumers read this surface's state from uSourceAlbedo, never albedo_color.
+		return SourceCelVertexColors.material(material, vertex_data and spec.get("vertexColors", false))
 	return material
 
 func _ribbon(body: StaticBody3D, scene_root: Node3D, segment: Dictionary, bottom_a: float, bottom_b: float, top_a: float, top_b: float) -> void:

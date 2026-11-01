@@ -26,6 +26,9 @@ export async function viewReferences(d, gameSource, mainSource, source) {
   };
   const rgba = body => [...body.matchAll(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/g)].map(match => [Number(match[1]) / 255, Number(match[2]) / 255, Number(match[3]) / 255, Number(match[4])]);
   const ringCss = section('.scope-vig'), fireCss = section('.env-fog'), weatherCss = section('.weather-fog');
+  // The two leading stops are the transparent scope centre; the ring is the repeated third stop.
+  const ringStops = rgba(ringCss);
+  if (ringStops.length !== 4 || JSON.stringify(ringStops[2]) !== JSON.stringify(ringStops[3])) throw new Error('Original scope ring gradient schema changed');
   const fireColors = rgba(fireCss);
   const weatherBody = grabBlock(main, 'weatherFog: (d) =>');
   const weatherLiteral = rgba(weatherBody);
@@ -49,7 +52,7 @@ export async function viewReferences(d, gameSource, mainSource, source) {
     fovSpeed: number(fovBlock, /lerpFPS\(([\d.]+), dt\)/, 'FOV interpolation'),
     fovSnap: number(fovBlock, /wantFov\) > ([\d.]+)/, 'FOV snap threshold'),
     frameCap: number(text, /Math.min\(([\d.]+), raw\)/, 'client frame cap'),
-    mask: { ringWidth: number(ringCss, /scope-r, [\d.]+vmin\) - ([\d.]+)px/, 'scope ring width'), ringColor: rgba(ringCss)[0],
+    mask: { ringWidth: number(ringCss, /scope-r, [\d.]+vmin\) - ([\d.]+)px/, 'scope ring width'), ringColor: ringStops[2],
       fireColors, fireStops, weatherColors,
       fireTransition: number(fireCss, /transition: opacity ([\d.]+)s/, 'fire-fog transition'),
       weatherTransition: number(weatherCss, /transition: opacity ([\d.]+)s/, 'weather-fog transition'),

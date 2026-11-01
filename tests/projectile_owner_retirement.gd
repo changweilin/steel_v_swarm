@@ -9,6 +9,29 @@ class PoolProbe extends ProjectilePresentation:
 			discarded += 1
 		returns.append({"model": model, "free": free_models.get(key, []).size(), "disposed": discarded})
 
+class TracerPoolProbe extends ProjectilePresentation:
+	var created_lines: Array[MeshInstance3D] = []
+	var returns: Array[Dictionary] = []
+	var discarded := 0
+	var retire_on_create := -1
+	func _make_trace() -> MeshInstance3D:
+		if retire_on_create >= 0 and created_lines.size() == retire_on_create:
+			retire()
+		var line := super._make_trace()
+		if line != null:
+			line.set_meta("probe", created_lines.size())
+			created_lines.append(line)
+		return line
+	func _release_trace(trace: Dictionary) -> void:
+		var line: MeshInstance3D = trace.get("line")
+		super._release_trace(trace)
+		if line != null:
+			if line.is_queued_for_deletion():
+				discarded += 1
+			returns.append({"line": line, "probe": int(line.get_meta("probe", -1)), "cleared": trace.get("line") == null,
+				"visible": line.visible, "in_scene": line.get_parent() != null,
+				"free": free_traces.size(), "disposed": discarded})
+
 var assertions := 0
 var failures: Array[String] = []
 var reference: Dictionary
@@ -219,15 +242,88 @@ func _tracers() -> void:
 		var expected := PackedVector3Array([Vector3(points[0], points[1], points[2]), Vector3(points[3], points[4], points[5])])
 		_check(mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] == expected, "Repeated and large-coordinate updates retain original Float32 vertex writes")
 		_check(mesh.custom_aabb == AABB(start, Vector3.ZERO).expand(end), "Updating endpoints refreshes the native culling override")
-		_check(absf(line.material_override.albedo_color.a - float(update.opacity)) < .000001,
-			"Reacquisition resets the original starting opacity")
+		_check(absf(line.material_override.albedo_color.a - float(update.opacity)) < .000001
+			and view.free_traces.size() == int(update.freeDuringActive),
+			"Reacquisition resets the original starting opacity and pops from the prewarmed pool")
 		previous_line = line
 		previous_mesh = mesh
 		previous_material = line.material_override
 		view.advance(update.ttl + .01, func(_start, _end): return {})
 		view._release_trace(record)
-		_check(record.line == null and view.free_traces.size() == 1, "Trace release is idempotent and cannot duplicate a pool entry")
+		_check(record.line == null and view.free_traces.size() == int(reference.tracerPool.prewarm), "Trace release is idempotent and cannot duplicate a pool entry")
 	view.free()
+
+func _tracer_pool() -> void:
+	var pool_ref: Dictionary = reference.tracerPool
+	var view := TracerPoolProbe.new()
+	add_child(view)
+	_check(view.tracer_pool_max == int(pool_ref.max) and view.tracer_prewarm == int(pool_ref.prewarm),
+		"Original tracer pool bounds match captured source constants")
+	_check(view.free_traces.size() == int(pool_ref.prewarmState.free)
+		and view.created_lines.size() == int(pool_ref.prewarmState.created)
+		and view.get_child_count() == int(pool_ref.prewarmState.inScene)
+		and view.free_traces.any(func(line: MeshInstance3D): return line.visible) == bool(pool_ref.prewarmState.anyVisible),
+		"Original tracer prewarm fills the free stack without entering the scene or showing lines")
+	var records: Array[Dictionary] = []
+	for index in range(pool_ref.acquire.size()):
+		var expected: Dictionary = pool_ref.acquire[index]
+		view.tracer(Vector3(index, 1, 2), Vector3(index, 3, 4), Color.hex(0x4fc3f7ff), .1)
+		var record: Dictionary = view.traces.back()
+		var line: MeshInstance3D = record.line
+		records.append(record)
+		_check(int(line.get_meta("probe", -1)) == int(expected.probe)
+			and view.free_traces.size() == int(expected.free)
+			and view.created_lines.size() == int(expected.created)
+			and (line.get_parent() == view) == bool(expected.inScene)
+			and line.visible == bool(expected.visible)
+			and absf(line.material_override.albedo_color.a - float(expected.opacity)) < .000001,
+			"Original tracer acquisition consumes the prewarmed LIFO stack before allocating new lines")
+	var overflow_line: MeshInstance3D = records[0].line
+	var overflow_mesh: WeakRef = weakref(overflow_line.mesh)
+	var overflow_material: WeakRef = weakref(overflow_line.material_override)
+	var overflow_node: WeakRef = weakref(overflow_line)
+	view.advance(.2, func(_start, _end): return {})
+	_check(view.traces.is_empty() and view.returns.size() == pool_ref.steps.size(), "All expired tracers release once in reverse order")
+	for index in range(pool_ref.steps.size()):
+		var expected: Dictionary = pool_ref.steps[index]
+		var actual: Dictionary = view.returns[index]
+		_check(actual.line == view.created_lines[int(expected.probe)]
+			and int(actual.probe) == int(expected.probe)
+			and records[int(expected.index)].line == null
+			and bool(actual.cleared) == bool(expected.cleared)
+			and bool(actual.visible) == bool(expected.visible)
+			and bool(actual.in_scene) == bool(expected.inScene),
+			"Original reverse tracer release clears the shell, hides the line and removes it from the scene")
+		_check(int(actual.free) == int(expected.free)
+			and int(actual.disposed) == int(expected.geometryDisposed)
+			and int(actual.disposed) == int(expected.materialDisposed),
+			"Original tracer pool bound retains up to TRACER_POOL_MAX and disposes overflow")
+	for record: Dictionary in records:
+		view._release_trace(record)
+	_check(view.free_traces.size() == int(pool_ref.idempotent.free)
+		and view.discarded == int(pool_ref.idempotent.geometryDisposed)
+		and view.discarded == int(pool_ref.idempotent.materialDisposed),
+		"Repeated tracer release is a no-op once the shell reference is cleared")
+	await get_tree().process_frame
+	_check(overflow_node.get_ref() == null and overflow_mesh.get_ref() == null and overflow_material.get_ref() == null,
+		"Overflow tracer disposal releases its native line, dynamic mesh and private material")
+	view.tracer(Vector3(9, 8, 7), Vector3(6, 5, 4), Color.hex(0xffb300ff), .25)
+	var reused: MeshInstance3D = view.traces.back().line
+	_check(int(reused.get_meta("probe", -1)) == int(pool_ref.reuse.probe)
+		and view.free_traces.size() == int(pool_ref.reuse.free)
+		and view.created_lines.size() == int(pool_ref.reuse.created)
+		and reused.visible == bool(pool_ref.reuse.visible)
+		and (reused.get_parent() == view) == bool(pool_ref.reuse.inScene)
+		and absf(reused.material_override.albedo_color.a - float(pool_ref.reuse.opacity)) < .000001,
+		"Reacquiring from a full tracer pool preserves LIFO order without extra allocation")
+	view.free()
+	var interrupted := TracerPoolProbe.new()
+	interrupted.retire_on_create = 3
+	add_child(interrupted)
+	_check(interrupted.retired and interrupted.free_traces.is_empty() and interrupted.traces.is_empty(),
+		"Reentrant retirement during tracer prewarm clears the free stack and aborts remaining allocations")
+	await get_tree().process_frame
+	interrupted.free()
 
 func _tracer_render() -> void:
 	var viewport := SubViewport.new()
@@ -281,6 +377,7 @@ func _run() -> void:
 		_callbacks()
 		_transfer()
 		_tracers()
+		await _tracer_pool()
 		await _tracer_render()
 	await get_tree().process_frame
 	print("PROJECTILE_OWNER_RETIREMENT assertions=", assertions, " failures=", failures.size())

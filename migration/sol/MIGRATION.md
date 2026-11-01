@@ -904,16 +904,19 @@ scenes before integrated acceptance; neither scene certifies populated snapshots
   and real-driver buffer/culling-pixel checks. It requires a rendered session.
   Verify retired buffers and private materials after deferred destruction and a
   completed rendered frame, including lines that were actually visible.
-  Original tracer prewarm/free-stack bounds remain unqualified until the pool
-  provenance contract below is resolved. Preserve the shared oldest-first
-  `FX_MAX` budget and reverse fade/expiry order across
+  Preserve the original tracer prewarm (`16` off-scene lines) and `TRACER_POOL_MAX`
+  (`48`) LIFO free-stack bound, removing released lines from the scene and
+  disposing overflow buffers/materials once; `tests/projectile_owner_retirement.tscn`
+  verifies prewarm state, LIFO reuse, overflow disposal, idempotent release and
+  interrupted prewarm retirement against `data/projectile_presentation.json`.
+  Preserve the shared oldest-first `FX_MAX` budget and reverse fade/expiry order across
   `ProjectilePresentation.traces` and `CombatEffects.effects`, after visual-shell
   movement. Source crowding gates count both owners. Regenerate the scoped oracle
   with `node tools/effect_order_capture.mjs`; real-driver
   `tests/presentation_effect_order.tscn` checks mixed insertion, zero-delta trimming,
   exact lifetime/fade scalars, both quality gates and reentrant owner retirement.
-  Its unbuilt-world and callback probes do not qualify full effect pixels,
-  original tracer pool limits or populated transport behavior.
+  Its unbuilt-world and callback probes do not qualify full effect pixels or
+  populated transport behavior.
 - [ ] **S17 — Impact/particles:** certify muzzle/contact/explosion layers,
   source fire/smoke/embers, texture/opacity/depth rules, pooling/oldest-first
   budgets, victim first-observation/healing/re-entry gates and guard peak rules.

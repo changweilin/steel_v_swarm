@@ -8,11 +8,30 @@ var shells: Array[Dictionary] = []
 var free_models: Dictionary = {}
 var traces: Array[Dictionary] = []
 var free_traces: Array[MeshInstance3D] = []
+var disposed_traces: Array[MeshInstance3D] = []
 var retired_rounds: Dictionary = {}
 var missile_collision := Callable()
 var rounds_clock := -INF
 var retired := false
-var pool_max := int(Content.read_json("res://data/projectile_presentation.json").poolMax)
+var pool_max := 24
+var tracer_pool_max := 48
+var tracer_prewarm := 16
+
+func _init() -> void:
+	var config: Dictionary = Content.read_json("res://data/projectile_presentation.json")
+	pool_max = int(config.poolMax)
+	tracer_pool_max = int(config.tracerPool.max)
+	tracer_prewarm = int(config.tracerPool.prewarm)
+
+func _ready() -> void:
+	if not _active():
+		return
+	var target := mini(tracer_pool_max, maxi(0, tracer_prewarm))
+	while _active() and free_traces.size() < target:
+		var line := _make_trace()
+		if line == null:
+			return
+		free_traces.append(line)
 
 func sync_rounds(states: Array, clock: float = NAN) -> void:
 	if not _active():
@@ -74,21 +93,31 @@ func tracer(start: Vector3, end: Vector3, color: Color, ttl: float = 0.35) -> vo
 	if not _active():
 		return
 	var line: MeshInstance3D
-	if free_traces.is_empty():
+	while not free_traces.is_empty():
+		var candidate: MeshInstance3D = free_traces.pop_back()
+		if is_instance_valid(candidate) and not candidate.is_queued_for_deletion():
+			line = candidate
+			break
+	if line == null:
 		line = _make_trace()
 		if line == null:
 			return
-	else:
-		line = free_traces.pop_back()
 	var geometry := line.mesh as ArrayMesh
 	geometry.surface_update_vertex_region(0, 0, PackedVector3Array([start, end]).to_byte_array())
 	geometry.custom_aabb = AABB(start, Vector3.ZERO).expand(end)
 	color.a = 0.9
 	line.material_override.albedo_color = color
 	if not _active():
+		_dispose_trace_line(line)
 		return
 	line.visible = true
 	if not _active():
+		_dispose_trace_line(line)
+		return
+	if line.get_parent() != self:
+		add_child(line)
+	if not _active():
+		_dispose_trace_line(line)
 		return
 	traces.append({"line": line, "ttl": ttl, "duration": ttl, "age": 0.0, "order": EffectOrder.stamp()})
 
@@ -162,13 +191,13 @@ func _make_trace() -> MeshInstance3D:
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_ALWAYS
+	material.albedo_color = Color(1, 1, 1, 0.9)
 	var line := MeshInstance3D.new()
 	line.mesh = geometry
 	line.material_override = material
 	line.visible = false
-	add_child(line)
 	if not _active():
-		line.queue_free()
+		_dispose_trace_line(line)
 		return null
 	return line
 
@@ -181,11 +210,24 @@ func _release_trace(trace: Dictionary) -> void:
 	trace.age = 0.0
 	trace.duration = 0.0
 	line.visible = false
+	if line.get_parent() == self:
+		remove_child(line)
 	if not _active():
-		line.queue_free()
+		_dispose_trace_line(line)
 		return
-	if not line.is_queued_for_deletion():
-		free_traces.append(line)
+	if not line.is_queued_for_deletion() and not free_traces.has(line):
+		if free_traces.size() < tracer_pool_max:
+			free_traces.append(line)
+		else:
+			_dispose_trace_line(line)
+
+func _dispose_trace_line(line: MeshInstance3D) -> void:
+	if not is_instance_valid(line):
+		return
+	line.visible = false
+	if not disposed_traces.has(line):
+		disposed_traces.append(line)
+	line.queue_free()
 
 func _take(key: String) -> ProjectileVisual:
 	if not _active():
@@ -233,15 +275,30 @@ func retire() -> void:
 	rounds.clear()
 	retired_rounds.clear()
 	for trace: Dictionary in traces:
+		var line: MeshInstance3D = trace.get("line")
 		trace.line = null
+		_dispose_trace_line(line)
 	traces.clear()
 	free_models.clear()
+	for line: MeshInstance3D in free_traces:
+		_dispose_trace_line(line)
 	free_traces.clear()
 	missile_collision = Callable()
 	for child: Node in get_children():
 		if child is ProjectileVisual or child is MeshInstance3D:
 			child.visible = false
 			child.queue_free()
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		for line: MeshInstance3D in free_traces:
+			if is_instance_valid(line) and line.get_parent() == null:
+				line.free()
+		free_traces.clear()
+		for line: MeshInstance3D in disposed_traces:
+			if is_instance_valid(line) and line.get_parent() == null:
+				line.free()
+		disposed_traces.clear()
 
 func _exit_tree() -> void:
 	retire()

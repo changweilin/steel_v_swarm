@@ -1,6 +1,8 @@
 extends Node3D
 
 const WorldMeshes = preload("res://tools/source_world_meshes.gd")
+# Half of Godot's 262,144-entry RID owner; live units and effects use the same owners.
+const MESH_RID_HEADROOM := 131072
 
 var checks := 0
 var failures: Array[String] = []
@@ -124,9 +126,22 @@ func _run() -> void:
 		var native_meshes := {}
 		for node: GeometryInstance3D in scene.find_children("SourceMesh_*", "GeometryInstance3D", true, false):
 			native_meshes[str(node.name)] = node
+		var batched := {}
+		var batch_nodes: Array[Node] = scene.find_children("SourceBatch_*", "MeshInstance3D", true, false)
+		for node: MeshInstance3D in batch_nodes:
+			var batch: Dictionary = node.mesh.get_meta("source_batch", {})
+			var arrays := node.mesh.surface_get_arrays(0)
+			for slot in range(batch.get("sources", PackedInt32Array()).size()):
+				_check(not batched.has(batch.sources[slot]), file + ": one native batch owns each original building part")
+				batched[batch.sources[slot]] = {"node": node, "batch": batch, "arrays": arrays, "slot": slot}
+		_check(native_meshes.size() + batch_nodes.size() < MESH_RID_HEADROOM, file + ": native mesh count leaves headroom below the engine RID limit")
 		var source_meshes := WorldMeshes.new(source)
 		for source_mesh: Dictionary in source_meshes:
-			_verify_mesh(file, native_meshes.get("SourceMesh_%d" % source_meshes.index), source_mesh, source.marinePrograms)
+			if batched.has(source_meshes.index):
+				_check(not native_meshes.has("SourceMesh_%d" % source_meshes.index), file + ": batched part has no duplicate native mesh")
+				_verify_batched(file, batched[source_meshes.index], source_mesh)
+			else:
+				_verify_mesh(file, native_meshes.get("SourceMesh_%d" % source_meshes.index), source_mesh, source.marinePrograms)
 		_check(source_meshes.valid, file + ": complete original mesh chunks and numeric buffers")
 		for system: Dictionary in data.source_aquatics.systems:
 			if system.kind != "detritus":
@@ -237,6 +252,52 @@ func _interior_point(segment: Dictionary) -> Vector2:
 	var b := Vector2(segment.x2, segment.z2)
 	var direction := (b - a).normalized()
 	return a.lerp(b, 0.371) + Vector2(direction.y, -direction.x) * segment.hw * 0.173
+
+func _verify_batched(file: String, member: Dictionary, source: Dictionary) -> void:
+	var node: MeshInstance3D = member.node
+	var batch: Dictionary = member.batch
+	var arrays: Array = member.arrays
+	var slot: int = member.slot
+	var first: int = batch.vertex_starts[slot]
+	var last: int = batch.vertex_starts[slot + 1]
+	_check(not source.has("instances") and not source.has("surfaces") and not source.get("water", false), file + ": only ordinary single-surface parts share a batch")
+	_check(node.get_meta("source_building_key", "") == source.get("sourceBuildingKey", ""), file + ": batched part keeps its original building clearance key")
+	_check(node.get_meta("noViewOcclusion", false), file + ": per-part view fade stays explicitly unavailable on a batch")
+	_check(node.visible == bool(source.visible), file + ": original captured mesh visibility")
+	_check((node.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON) == bool(source.get("castShadow", true)), file + ": original shadow-caster flag")
+	_check(source.get("attributes", {}).is_empty(), file + ": parts with custom attributes keep their own native mesh")
+	_check(batch.cel_frames.slice(slot * 16, (slot + 1) * 16) == source.celGeometry.frame, file + ": original cel model frame survives batching")
+	_check(batch.cel_positions.slice(first * 3, last * 3) == PackedFloat32Array(Array(source.celGeometry.positions)), file + ": original cel local vertices survive batching")
+	_check(batch.cel_normals.slice(first * 3, last * 3) == PackedFloat32Array(Array(source.celGeometry.normals)), file + ": original cel local normals survive batching")
+	var vertices := PackedVector3Array()
+	for offset in range(0, source.positions.size(), 3):
+		vertices.append(Vector3(source.positions[offset], source.positions[offset + 1], source.positions[offset + 2]))
+	_check((arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).slice(first, last) == vertices, file + ": original surface vertices preserved in source order")
+	if source.normals.size() == source.positions.size():
+		# Native vertex storage octahedrally encodes normals, so compare direction only.
+		var native_normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+		var aligned := true
+		for vertex in range(vertices.size()):
+			var expected := Vector3(source.normals[vertex * 3], source.normals[vertex * 3 + 1], source.normals[vertex * 3 + 2])
+			aligned = aligned and (expected.is_zero_approx() or native_normals[first + vertex].dot(expected.normalized()) > .9999)
+		_check(aligned, file + ": original surface normal directions preserved")
+	var indices := PackedInt32Array()
+	var triangles: Array = source.index
+	for offset in range(0, triangles.size(), 3):
+		indices.append_array(PackedInt32Array([first + int(triangles[offset]), first + int(triangles[offset + 2]), first + int(triangles[offset + 1])]))
+	_check((arrays[Mesh.ARRAY_INDEX] as PackedInt32Array).slice(batch.index_starts[slot], batch.index_starts[slot + 1]) == indices, file + ": original reflected winding rebased onto the batch")
+	if source.has("cel"):
+		_check(SourceCelData.material_source(node.material_override) == source.cel, file + ": original material cel definitions and typed uniforms preserved")
+	if not source.colors.is_empty() and source.get("vertexColors", false):
+		var components := int(source.get("colorSize", 3))
+		var expected := PackedFloat32Array()
+		expected.resize(vertices.size() * 4)
+		for vertex in range(vertices.size()):
+			expected[vertex * 4 + 3] = 1.0
+			for channel in range(components):
+				expected[vertex * 4 + channel] = float(source.colors[vertex * components + channel])
+		var actual: PackedFloat32Array = (arrays[SourceCelVertexColors.ARRAY_SLOT] as PackedFloat32Array).slice(first * 4, last * 4)
+		_check(actual.to_byte_array() == expected.to_byte_array(), file + ": original RGB/RGBA surface colors preserved in Float32 attribute")
 
 func _verify_mesh(file: String, node: GeometryInstance3D, source: Dictionary, marine_sources: Array) -> void:
 	_check(node != null, file + ": captured mesh exists in its static or moving hierarchy")

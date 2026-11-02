@@ -1140,6 +1140,16 @@ them. Remove completed items; no dated checkpoints or copied validation history.
   in 3 of 3 runs. `tests/run.tscn` still stops at the stale
   `tests/audio_suite.gd` consumer hash (Opus request below), so suites after it
   are unverified.
+- **CI world delivery (`.github/workflows/pages.yml`):** seasonal `.res` packs
+  (360–430 MB) exceed GitHub's file limit and LFS quota, so the `worlds` matrix
+  packs `berlin_1_summer` (fixtures and network tests) and the eight size-5
+  bundles (default smoke roll) with `opengl3_angle` on the runner. It caches each
+  pack by its bundle JSON, `data/*.json`, `project.godot`, scripts, tools and
+  shaders, then hands the packs to `build` as one-day artifacts. Add a bundle to
+  the matrix when a CI-run test starts loading it. The Web preset excludes
+  seasonal packs: GitHub Pages caps a site at 1 GB, so Web `--smoke`
+  (`tools/test_web.py`) stays unavailable until worlds can be delivered to the
+  browser.
 - **Terra — per-part view occlusion for batched buildings
   (`scripts/view_occlusion.gd`):** source `_registerViewOccluders` fades individual
   source meshes. Batches carry `noViewOcclusion` meta, so their parts never fade;

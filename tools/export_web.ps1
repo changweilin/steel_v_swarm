@@ -28,8 +28,9 @@ function Invoke-GodotCheck([string]$Name, [string[]]$Arguments, [string]$Marker 
 }
 
 Invoke-GodotCheck 'import' @('--headless', '--path', $projectRoot, '--editor', '--import')
-Invoke-GodotCheck 'fixtures' @('--headless', '--path', $projectRoot, 'res://tests/run.tscn') 'TEST_PASS' 600000
-Invoke-GodotCheck 'smoke' @('--headless', '--path', $projectRoot, '--', '--smoke') 'SMOKE_PASS' 60000
+# Seasonal native worlds load hundreds of megabytes per match.
+Invoke-GodotCheck 'fixtures' @('--headless', '--path', $projectRoot, 'res://tests/run.tscn') 'TEST_PASS' 1800000
+Invoke-GodotCheck 'smoke' @('--headless', '--path', $projectRoot, '--', '--smoke') 'SMOKE_PASS' 600000
 & (Join-Path $PSScriptRoot 'test_network.ps1') -Godot $Godot
 Invoke-GodotCheck 'export' @('--headless', '--path', $projectRoot, '--export-release', 'Web', (Join-Path $outputRoot 'index.html'))
 foreach ($file in @('index.html', 'index.js', 'index.wasm', 'index.pck')) {

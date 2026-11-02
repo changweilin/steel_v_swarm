@@ -18,14 +18,66 @@ env:
   GODOT_VERSION: 4.7.2
 
 jobs:
-  build:
+  # Seasonal native worlds exceed GitHub's file limit, so CI packs the bundles that the
+  # fixtures, network tests (berlin_1_summer) and default smoke roll (size 5) load.
+  worlds:
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        bundle: [berlin_1_summer, berlin_5_autumn, berlin_5_spring, berlin_5_summer, berlin_5_winter,
+          berlin_swap_5_autumn, berlin_swap_5_spring, berlin_swap_5_summer, berlin_swap_5_winter]
     steps:
       - uses: actions/checkout@v4
         with:
           lfs: true
           persist-credentials: false
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: assets/worlds/${{ matrix.bundle }}.res
+          key: world-${{ matrix.bundle }}-${{ env.GODOT_VERSION }}-${{ hashFiles(format('data/worlds/{0}.json', matrix.bundle), 'data/*.json', 'project.godot', 'scripts/**/*.gd', 'tools/**/*.gd', 'shaders/**') }}
+      - name: Pack native world
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $release = "https://github.com/godotengine/godot-builds/releases/download/$env:GODOT_VERSION-stable"
+          Invoke-WebRequest "$release/Godot_v$env:GODOT_VERSION-stable_win64.exe.zip" -OutFile "$env:RUNNER_TEMP/godot.zip"
+          Expand-Archive "$env:RUNNER_TEMP/godot.zip" "$env:RUNNER_TEMP/godot"
+          $godot = "$env:RUNNER_TEMP/godot/Godot_v$env:GODOT_VERSION-stable_win64_console.exe"
+          New-Item -ItemType Directory -Force build | Out-Null
+          New-Item -ItemType File -Force build/.gdignore | Out-Null
+          & $godot --headless --path . --editor --import *> build/import.log
+          if ($LASTEXITCODE -ne 0) { Get-Content build/import.log; exit 1 }
+          # The importer needs a real driver; ANGLE runs on the runner's software D3D11 device.
+          & $godot --path . --rendering-method gl_compatibility --rendering-driver opengl3_angle --disable-render-loop --audio-driver Dummy --position -32000,-32000 --resolution 1x1 res://tools/import_worlds.tscn -- "--bundle=${{ matrix.bundle }}" *> build/pack.log
+          $code = $LASTEXITCODE
+          $output = Get-Content build/pack.log -Raw
+          Select-String -Path build/pack.log -Pattern 'OpenGL API|WORLD_IMPORTED'
+          if ($code -ne 0 -or $output -match '(?m)^(SCRIPT ERROR:|ERROR:)' -or $output -notmatch 'WORLD_IMPORTED ${{ matrix.bundle }}') { Write-Output $output; exit 1 }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: world-${{ matrix.bundle }}
+          path: assets/worlds/${{ matrix.bundle }}.res
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  build:
+    needs: worlds
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: world-*
+          path: assets/worlds
+          merge-multiple: true
       - uses: actions/setup-node@v7
         with:
           node-version: '24'

@@ -1153,6 +1153,17 @@ them. Remove completed items; no dated checkpoints or copied validation history.
   seasonal packs: GitHub Pages caps a site at 1 GB, so Web `--smoke`
   (`tools/test_web.py`) stays unavailable until worlds can be delivered to the
   browser.
+- **Fixture driver (`tools/export_web.ps1`):** headless Godot discards MultiMesh
+  instance data (`get_instance_transform` returns identity, `buffer` is empty),
+  which produced ~965,000 wildlife/petal/aquatic/climb/structure/view failures.
+  `tests/run.tscn` now runs on `opengl3_angle`: 25 failures remain on OpenGL
+  (`campaign_suite` 24: uncaptured campaign worlds; `body_suite` 1: incremental
+  case consumption). ANGLE adds 64 `texture_suite` mip readback mismatches
+  (`Texture2D.get_image` through GLES3), and engine errors remain for
+  uncaptured cross-side pilot bodies (`steel_s01`–`s12`, `merc_m05`–`m08`,
+  `steel`/`swarm_npc_bunker`): `tools/body_references.mjs` enumerates each
+  character only for its own side plus `SUPER_SIDE`, and `burst_suite.gd:108`
+  then indexes a pilot that failed to configure.
 - **Terra — per-part view occlusion for batched buildings
   (`scripts/view_occlusion.gd`):** source `_registerViewOccluders` fades individual
   source meshes. Batches carry `noViewOcclusion` meta, so their parts never fade;

@@ -1146,7 +1146,10 @@ them. Remove completed items; no dated checkpoints or copied validation history.
   bundles (default smoke roll) with `opengl3_angle` on the runner. It caches each
   pack by its bundle JSON, `data/*.json`, `project.godot`, scripts, tools and
   shaders, then hands the packs to `build` as one-day artifacts. Add a bundle to
-  the matrix when a CI-run test starts loading it. The Web preset excludes
+  the matrix when a CI-run test starts loading it, and force-add the
+  `data/worlds/buffers/*` files its mesh chunks reference (the directory is
+  ignored; the nine CI bundles need 687 files, 514.5 MB, largest 46.1 MB).
+  The Web preset excludes
   seasonal packs: GitHub Pages caps a site at 1 GB, so Web `--smoke`
   (`tools/test_web.py`) stays unavailable until worlds can be delivered to the
   browser.

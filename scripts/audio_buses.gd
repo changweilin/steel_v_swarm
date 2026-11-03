@@ -12,6 +12,7 @@ var disposed := false
 var clock_capture: AudioEffectCapture
 var clock_rate := 0.0
 var capture_sink: StringName
+var sample_worker := preload("res://scripts/audio_sample_worker.gd").new()
 
 func configure() -> Error:
 	if configured or disposed:
@@ -124,6 +125,7 @@ func retire() -> void:
 		return
 	disposed = true
 	retiring.emit()
+	sample_worker.stop()
 	var names: Array[StringName] = owned.duplicate()
 	owned.clear()
 	if not names.is_empty():

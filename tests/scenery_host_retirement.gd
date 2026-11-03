@@ -55,7 +55,7 @@ func _bind_host(info: Dictionary, spec: Dictionary, train_spec: Dictionary = {})
 	_check(host.configure(info.root, train_sources, [spec]), "Bind native source root, motion/train owners and camp caches")
 	for motion: SceneryMotion in host.motions:
 		held_motions.append(motion)
-		for material: StandardMaterial3D in motion.materials:
+		for material: Material in motion.materials:
 			private_resources.append(weakref(material))
 	for train: SceneryTrainMotion in host.trains:
 		held_trains.append(train)

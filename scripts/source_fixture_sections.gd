@@ -69,7 +69,7 @@ static func load_part(registry: Dictionary, base: String, key: String, index: in
 		if numbers.size() != int(numeric.get("bytes", -1)) or numbers.size() != int(numeric.get("count", -1)) * 8:
 			_fail("Original numeric fixture partition length mismatch: " + numeric_path)
 			return null
-		var restored := restore_numeric_tape(value, numbers)
+		var restored := restore_numbers(value, numbers)
 		if not restored.ok:
 			_fail(str(restored.error) + ": " + numeric_path)
 			return null
@@ -79,37 +79,30 @@ static func load_part(registry: Dictionary, base: String, key: String, index: in
 		return null
 	return value
 
-## Restores every numeric leaf of a captured JSON value tree from its native
-## float64 little-endian tape, in the producer's depth-first order. Strings,
-## booleans and nulls keep their parsed values and the tree keeps its shape.
-## Callers validate the storage paths and hashes of both inputs first.
-## Returns {"ok": bool, "value": Variant, "error": String}; on failure the
-## captured tree is returned unchanged and no partial restoration is exposed.
-static func restore_numeric_tape(value: Variant, numbers: PackedByteArray) -> Dictionary:
-	if numbers.size() % 8 != 0:
-		return {"ok": false, "value": value, "error": "Original numeric tape is not a whole number of float64 words"}
+# Godot's decimal parser can round a captured double, so number leaves take their
+# words from the float64 tape in JSON order. Callers validate storage first.
+# A rejected tape leaves the captured tree unchanged.
+static func restore_numbers(value: Variant, numbers: PackedByteArray) -> Dictionary:
 	var count := _count_numbers(value)
-	if count * 8 > numbers.size():
-		return {"ok": false, "value": value, "error": "Original numeric tape ended before its value tree"}
-	if count * 8 < numbers.size():
-		return {"ok": false, "value": value, "error": "Original numeric tape was not fully consumed"}
-	var cursor := [0]
-	var restored: Variant = _restore_numbers(value.duplicate(true) if value is Dictionary or value is Array else value, numbers, cursor)
-	return {"ok": true, "value": restored, "error": ""}
+	if count < 0:
+		return {"ok": false, "error": "Captured value tree holds a non-JSON value"}
+	if numbers.size() != count * 8:
+		return {"ok": false, "error": "Numeric tape does not hold exactly one float64 word per captured number"}
+	return {"ok": true, "value": _restore_numbers(value, numbers, [0])}
 
 static func _count_numbers(value: Variant) -> int:
-	var count := 0
-	if value is Dictionary:
-		for item: Variant in value.values():
-			count += _count_numbers(item)
-	elif value is Array:
-		for item: Variant in value:
-			count += _count_numbers(item)
-	elif value is float or value is int:
-		count = 1
-	return count
+	if value is Dictionary or value is Array:
+		var count := 0
+		for item: Variant in (value.values() if value is Dictionary else value):
+			var nested := _count_numbers(item)
+			if nested < 0:
+				return -1
+			count += nested
+		return count
+	if value is float or value is int:
+		return 1
+	return 0 if value == null or value is bool or value is String else -1
 
-# The word count is validated before restoration, so every leaf has a word.
 static func _restore_numbers(value: Variant, numbers: PackedByteArray, cursor: Array) -> Variant:
 	if value is Dictionary:
 		for key: Variant in value:

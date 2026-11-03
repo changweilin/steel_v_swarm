@@ -6,8 +6,8 @@ static func run(h: Node, fixtures: Dictionary) -> void:
 		return
 	var images := SourceTextureImages.new()
 	h._check(images.configure([fixtures.textureImageCapture]), "Decode original RGBA bytes without losing transparent RGB")
-	_manual_mips(h, fixtures)
-	_cel_samplers(h, fixtures)
+	await _manual_mips(h, fixtures)
+	await _cel_samplers(h, fixtures)
 	if not fixtures.get("textureRasters") is Dictionary:
 		h._check(false, "Regenerate original WebGL sampler raster references separately from CPU transformUv")
 		return
@@ -78,7 +78,12 @@ static func _manual_mips(h: Node, fixtures: Dictionary) -> void:
 		var cel := SourceCelData.new()
 		h._check(cel.configure({"celSamplers": [{"kind": "image", "texture": fixture.spec}]}, images), "Cel sampler accepts captured authored levels")
 		var cel_texture := cel.texture(0)
-		h._check(cel_texture != null and cel_texture.get_image().get_data() == original.get_data(), "Cel sampler retains raw authored mips without native regeneration")
+		h._check(cel_texture != null and cel_texture.get_image().get_mipmap_count() == original.get_mipmap_count(), "Cel sampler retains every authored level")
+		if cel_texture != null:
+			for level in range(original.get_mipmap_count() + 1):
+				var raw := SourceTextureImages._source_level(original, level)
+				var actual := await _gpu_level(h, cel_texture, level, raw.get_size())
+				h._check(actual.get_data() == raw.get_data(), "Cel sampler retains raw authored mips without native regeneration")
 		var texture := images.resolve(fixture.spec)
 		h._check(texture != null, "Upload source authored mip chain: " + fixture.label)
 		if texture == null:
@@ -91,7 +96,7 @@ static func _manual_mips(h: Node, fixtures: Dictionary) -> void:
 			var expected: Dictionary = fixture.levels[level]
 			var raw := SourceTextureImages._source_level(original, level)
 			h._check(raw.get_data() == PackedByteArray(expected.bytes), "Original Canvas2D mip pixels remain byte exact")
-			var actual := SourceTextureImages._source_level(uploaded, level)
+			var actual := await _gpu_level(h, texture, level, raw.get_size())
 			if fixture.spec.flipY:
 				raw.flip_y()
 			h._check(actual.get_data() == raw.get_data(), "Native upload flips each authored mip without downsampling")
@@ -108,9 +113,54 @@ static func _manual_mips(h: Node, fixtures: Dictionary) -> void:
 				continue
 			for level in range(variant.levels.size()):
 				var expected: Dictionary = variant.levels[level]
-				var actual := SourceTextureImages._source_level(image, level)
+				var size := Vector2i(maxi(image.get_width() >> level, 1), maxi(image.get_height() >> level, 1))
+				var actual := await _gpu_level(h, native, level, size)
 				h._check(actual.get_size() == Vector2i(expected.width, expected.height) and actual.get_data() == PackedByteArray(expected.bytes),
 					"Native authored mip matches original GPU textureLod: %s level %d sampler %s" % [fixture.label, level, JSON.stringify(variant.spec)])
+
+# GLES readback (ANGLE, WebGL) regenerates mips from level 0, so fetch each uploaded level on the GPU.
+static func _gpu_level(h: Node, texture: Texture2D, level: int, size: Vector2i) -> Image:
+	var viewport := SubViewport.new()
+	viewport.size = size
+	viewport.transparent_bg = true
+	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var rect := ColorRect.new()
+	rect.size = Vector2(size)
+	var material := ShaderMaterial.new()
+	material.shader = Shader.new()
+	material.shader.code = "shader_type canvas_item;\nrender_mode unshaded, blend_disabled;\nuniform sampler2D source : filter_nearest_mipmap;\nuniform int level;\nvoid fragment() { COLOR = texelFetch(source, ivec2(FRAGCOORD.xy), level); }\n"
+	material.set_shader_parameter("source", texture)
+	material.set_shader_parameter("level", level)
+	rect.material = material
+	viewport.add_child(rect)
+	h.add_child(viewport)
+	await RenderingServer.frame_post_draw
+	var image := viewport.get_texture().get_image()
+	viewport.free()
+	image.convert(Image.FORMAT_RGBA8)
+	# Viewports below a minimum size are padded; keep only the fetched level.
+	return image.get_region(Rect2i(Vector2i.ZERO, size))
+
+# Writes the float32 bits each texel channel samples as, four output pixels per texel.
+static func _gpu_bits(h: Node, texture: Texture2D, size: Vector2i) -> PackedByteArray:
+	var viewport := SubViewport.new()
+	viewport.size = Vector2i(size.x * 4, size.y)
+	viewport.transparent_bg = true
+	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var rect := ColorRect.new()
+	rect.size = Vector2(viewport.size)
+	var material := ShaderMaterial.new()
+	material.shader = Shader.new()
+	material.shader.code = "shader_type canvas_item;\nrender_mode unshaded, blend_disabled;\nuniform sampler2D source : filter_nearest;\nvoid fragment() {\n\tivec2 pixel = ivec2(FRAGCOORD.xy);\n\tuint bits = floatBitsToUint(texelFetch(source, ivec2(pixel.x / 4, pixel.y), 0)[pixel.x % 4]);\n\tCOLOR = vec4(uvec4(bits, bits >> 8u, bits >> 16u, bits >> 24u) & uvec4(255u)) / 255.0;\n}\n"
+	material.set_shader_parameter("source", texture)
+	rect.material = material
+	viewport.add_child(rect)
+	h.add_child(viewport)
+	await RenderingServer.frame_post_draw
+	var image := viewport.get_texture().get_image()
+	viewport.free()
+	image.convert(Image.FORMAT_RGBA8)
+	return image.get_region(Rect2i(Vector2i.ZERO, Vector2i(size.x * 4, size.y))).get_data()
 
 static func _cel_samplers(h: Node, fixtures: Dictionary) -> void:
 	if not fixtures.has("celSamplerCases") or not fixtures.has("celSamplerBundle"):
@@ -135,5 +185,10 @@ static func _cel_samplers(h: Node, fixtures: Dictionary) -> void:
 		var texture := bundle.texture(index)
 		h._check(texture != null and texture == bundle.texture(index), "Original cel sampler texture is shared within its immutable bundle")
 		if texture != null:
-			var retained := texture.get_image()
-			h._check(retained != null and retained.get_data() == image.get_data(), "Native cel texture retains the captured channel precision")
+			var expected := PackedFloat32Array()
+			for y in range(image.get_height()):
+				for x in range(image.get_width()):
+					var color := image.get_pixel(x, y)
+					expected.append_array([color.r, color.g, color.b, color.a])
+			var fetched := await _gpu_bits(h, texture, image.get_size())
+			h._check(fetched == expected.to_byte_array(), "Native cel texture retains the captured channel precision")

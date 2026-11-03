@@ -20,7 +20,8 @@ await mkdir(join(directory, 'elevation'), { recursive:true });
 for (const id of [...new Set(campaign.maps.map(map=>map.source_id))]) {
   if(selected.length&&!selected.includes(id))continue;
   const maps = campaign.maps.filter(map=>map.source_id===id);
-  const cfg = Object.values(maps[0].variants)[0].config;
+  // Campaign configs carry no teamSize; the variant key is the team size.
+  const team = Number(Object.keys(maps[0].variants)[0]);
   const boxes = maps.map(map=>d.battleBBox(Object.values(map.variants)[0].config));
   const bbox = {minLat:Math.min(...boxes.map(b=>b.minLat)),maxLat:Math.max(...boxes.map(b=>b.maxLat)),
     minLng:Math.min(...boxes.map(b=>b.minLng)),maxLng:Math.max(...boxes.map(b=>b.maxLng))};
@@ -35,10 +36,10 @@ for (const id of [...new Set(campaign.maps.map(map=>map.source_id))]) {
   const {raw,urls}=await captureMap(bbox),roads=osmMapRoadResponse(raw);
   if(!Array.isArray(roads.elements))throw new Error(`${id}: original OSM road response missing`);
   const venue = {id,name:maps[0].name};
-  const relief=await captureElevationFixture({name:id,venue,team:cfg.teamSize,bbox,center,
+  const relief=await captureElevationFixture({name:id,venue,team,bbox,center,
     bounds:elevationWorldBounds(bbox,center),outputDir:elevationDir,timeoutMs:20000,update:true});
   if(!relief?.fixture)throw new Error(`${id}: verified Terrarium capture missing`);
-  const payload={version:1,schema:'venue-road-fixture-v1',name:id,team:cfg.teamSize,venue,center,bbox,capturedAt:new Date().toISOString(),
+  const payload={version:1,schema:'venue-road-fixture-v1',name:id,team,venue,center,bbox,capturedAt:new Date().toISOString(),
     source:{roads:'https://api.openstreetmap.org/api/0.6/map.json',urls},queries:{roads:{version:'osm-map-json-0.6',text:urls.join('\n')}},
     responses:{osmMap:raw,roads}};
   await writeFile(path+'.tmp',gzipSync(Buffer.from(JSON.stringify(payload)+'\n'),{level:9}));

@@ -179,7 +179,13 @@ func _run() -> void:
 	for fixture in fixtures.volumes:
 		var actor := BattleUnit.new()
 		add_child(actor)
-		actor.configure({"id":90001,"side":fixture.side,"kind":fixture.kind,"character":fixture.character,"position":Vector3.ZERO})
+		# Source volumes ignore side except for bases; build each unit on a side that owns its body.
+		var side: String = fixture.side
+		if side == "MERC":
+			side = "STEEL"
+		elif fixture.kind == "bunker":
+			side = "GUER"
+		actor.configure({"id":90001,"side":side,"kind":fixture.kind,"character":fixture.character,"position":Vector3.ZERO})
 		var target: CylinderShape3D = actor.hit_area.get_child(0).shape
 		_near(target.radius, fixture.radius, "Source target radius: " + fixture.kind)
 		_near(target.height, fixture.height, "Source target height: " + fixture.kind)
@@ -366,10 +372,15 @@ func _run_fixture_suite(suite: Variant) -> void:
 		_check(false, "Unverified source suite requires incremental case consumption: " + suite.resource_path + " bytes=" + str(encoded_bytes))
 		failure_scope = "core"
 		return
+	# A mismatched call is only a script error, which would otherwise report assertions=0 as a pass.
+	var arguments := 1 if suite in [RoomWorldResourceTests, RoomWorldPrebuildTests] else 2
+	if _run_arguments(suite) != arguments:
+		_check(false, "Selected source suite does not accept this runner's arguments: " + suite.resource_path)
+		failure_scope = "core"
+		return
 	var data: Dictionary = Content.read_json("res://data/fixtures.json", keys)
 	print("SOURCE_SUITE_BEGIN ", suite.resource_path)
-	# Suites that read their own resources declare run(h) without fixture data.
-	if _suite_run_arity(suite) == 1:
+	if suite in [RoomWorldResourceTests, RoomWorldPrebuildTests]:
 		await suite.run(self)
 	else:
 		await suite.run(self, data)
@@ -378,11 +389,11 @@ func _run_fixture_suite(suite: Variant) -> void:
 	print("SOURCE_SUITE_END ", suite.resource_path, " assertions=", assertions - previous_assertions, " failures=", failures - previous_failures)
 	failure_scope = "core"
 
-func _suite_run_arity(suite: Script) -> int:
+func _run_arguments(suite: GDScript) -> int:
 	for method: Dictionary in suite.get_script_method_list():
 		if method.name == "run":
 			return method.args.size()
-	return 2
+	return -1
 
 func _missile_flight_tests(fixtures: Array) -> void:
 	for fixture in fixtures:

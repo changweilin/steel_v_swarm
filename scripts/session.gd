@@ -4,6 +4,7 @@ signal lobby_changed
 signal battle_started(config: Dictionary, roster: Array)
 signal battle_launched
 signal state_received(state: Dictionary)
+signal snapshot_heard
 signal body_event_received(event: Dictionary)
 signal status_changed(key: String)
 signal stopped
@@ -12,6 +13,8 @@ signal room_returned
 signal battle_failed(reason: String)
 
 const WEBSOCKET_BUFFER_BYTES := 1 << 20
+const ENET_THROTTLE_INTERVAL_MILLISECONDS := 5000
+const ENET_THROTTLE_ACCELERATION := 2
 
 var roster: Array = []
 var config: Dictionary = {}
@@ -47,6 +50,7 @@ var launch_announced := false
 var prepared_map: Dictionary = {}
 var round_id := 0
 var command_queue := RoomCommandQueue.new()
+var snapshot_window := RoomSnapshotWindow.new()
 var credential_store := RoomCredential.new()
 var deployment := DeploymentPreferences.new()
 var failure_reason := ""
@@ -378,6 +382,15 @@ func _websocket_peer() -> WebSocketMultiplayerPeer:
 	socket.outbound_buffer_size = WEBSOCKET_BUFFER_BYTES
 	return socket
 
+# ENet acknowledges only when its peer polls, so a slow client frame reads as
+# congestion. Deceleration would shrink the reliable window to one MTU per round
+# trip, leaving one fragmented snapshot ahead of control traffic for ten seconds.
+# RoomSnapshotWindow already bounds what this route can queue.
+func _retain_reliable_window(peer: int) -> void:
+	var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	if enet != null:
+		enet.get_peer(peer).throttle_configure(ENET_THROTTLE_INTERVAL_MILLISECONDS, ENET_THROTTLE_ACCELERATION, 0)
+
 func _open_transport(address: String, port: int) -> Error:
 	var peer: MultiplayerPeer
 	if address.begins_with("ws://") or address.begins_with("wss://"):
@@ -421,6 +434,7 @@ func stop() -> void:
 	seats = RoomSeats.new()
 	pending_snapshot.clear()
 	command_queue.clear()
+	snapshot_window.clear()
 	_close_transport()
 	roster.clear()
 	config.clear()
@@ -811,6 +825,7 @@ func _register(character: String, side: String, token: String = "", requested_mo
 	var sender := multiplayer.get_remote_sender_id()
 	if sender <= 1:
 		return
+	_retain_reliable_window(sender)
 	if not token.is_empty():
 		var token_owner := seats.owner_for(token)
 		var selected: Array = roster.filter(func(entry): return int(entry.peer) == token_owner)
@@ -834,7 +849,7 @@ func _register(character: String, side: String, token: String = "", requested_mo
 			if not failure_reason.is_empty():
 				_receive_failure.rpc_id(sender, failure_reason, round_id)
 			elif phase in ["game", "over"] and simulation != null:
-				_snapshot.rpc_id(sender, _state_for(player))
+				_publish_snapshot(sender, player)
 		lobby_changed.emit()
 		return
 	if seats.player_for(sender) != 0:
@@ -883,7 +898,7 @@ func _register(character: String, side: String, token: String = "", requested_mo
 		if not failure_reason.is_empty():
 			_receive_failure.rpc_id(sender, failure_reason, round_id)
 		elif phase == "game" and simulation != null:
-			_snapshot.rpc_id(sender, _state_for(player))
+			_publish_snapshot(sender, player)
 
 @rpc("authority", "call_remote", "reliable")
 func _identity(player: int, token: String, character: String, side: String) -> void:
@@ -1076,7 +1091,7 @@ func _broadcast_state() -> void:
 	for peer in multiplayer.get_peers():
 		var player := seats.player_for(peer)
 		if player > 0:
-			_snapshot.rpc_id(peer, _state_for(player))
+			_publish_snapshot(peer, player)
 	var battle := simulation
 	state_received.emit(_state_for(1))
 	if simulation != battle:
@@ -1085,10 +1100,24 @@ func _broadcast_state() -> void:
 	if simulation.over:
 		snapshot_timer.stop()
 
+# A snapshot queued behind unread ones only delays reliable control traffic on the
+# same transport, so a full window skips the send. The state is still built each
+# tick because event visibility belongs to the frame that produced the event.
+func _publish_snapshot(peer: int, player: int) -> void:
+	var state := _state_for(player)
+	if snapshot_window.is_full(peer):
+		snapshot_window.hold(peer, state.events)
+		return
+	state.events = snapshot_window.release(peer) + state.events
+	snapshot_window.sent(peer, int(state._serial))
+	_snapshot.rpc_id(peer, state)
+
 func _state_for(player: int) -> Dictionary:
 	var member: Dictionary = seats.members.get(player, {})
 	var state := simulation.snapshot(player, String(member.get("side", "")))
 	state["_match"] = round_id
+	simulation.snapshot_serial += 1
+	state["_serial"] = simulation.snapshot_serial
 	return state
 
 func broadcast_body_event(event: Dictionary) -> void:
@@ -1118,6 +1147,9 @@ func _body_event(event: Dictionary, match_id: int) -> void:
 @rpc("authority", "call_remote", "reliable", 3)
 func _snapshot(data: Dictionary) -> void:
 	var match_id := int(data.get("_match", -1))
+	# Receipt, not acceptance: a stale or pending state has still left the transport.
+	if multiplayer.get_remote_sender_id() == 1:
+		_snapshot_received.rpc_id(1, int(data.get("_serial", -1)), match_id)
 	if match_id < round_id or not active or not failure_reason.is_empty() and match_id == round_id:
 		return
 	if match_id > round_id or not started or simulation == null or reconnecting or not launch_announced:
@@ -1126,12 +1158,26 @@ func _snapshot(data: Dictionary) -> void:
 		pending_snapshot = data
 		return
 	if simulation != null:
-		simulation.apply_snapshot(data)
-		state_received.emit(data)
+		snapshot_heard.emit()
+		if simulation.apply_snapshot(data):
+			state_received.emit(data)
+
+@rpc("any_peer", "call_remote", "reliable", 3)
+func _snapshot_received(serial: int, match_id: int) -> void:
+	if not active or not is_authority() or simulation == null or match_id != round_id:
+		return
+	var peer := multiplayer.get_remote_sender_id()
+	snapshot_window.acknowledge(peer, serial)
+	# The timer stops on the final tick; a recipient it skipped still owes that state.
+	if snapshot_timer.is_stopped() and failure_reason.is_empty() and snapshot_window.is_held(peer):
+		var player := seats.player_for(peer)
+		if player > 0:
+			_publish_snapshot(peer, player)
 
 func _on_disconnected(peer: int) -> void:
 	if not active or closing_transport or not is_authority():
 		return
+	snapshot_window.forget(peer)
 	var registry := seats
 	var hold := started and float(Content.balance.rooms.dropMilliseconds) > 0
 	var detached := registry.detach(peer, hold)
@@ -1226,6 +1272,7 @@ func _dispose_match() -> void:
 		pending_snapshot.clear()
 	local_command.clear()
 	command_queue.clear()
+	snapshot_window.clear()
 
 func _clear_room() -> void:
 	_dispose_match()

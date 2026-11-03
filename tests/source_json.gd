@@ -50,6 +50,18 @@ func _run() -> void:
 	for index in range(mini(rows.size(), fixture.cases.size())):
 		var item: Dictionary = fixture.cases[index]
 		var payload: Dictionary = JSON.parse_string(item.payload)
+		var tape := PackedByteArray()
+		for field: String in ["positions", "normal", "matrix"]:
+			tape.append_array(Marshalls.base64_to_raw(item.expected[field]))
+		var restored_payload := SourceFixtureSections.restore_numbers(payload, tape)
+		_check(restored_payload.ok, "Restore original browser JSON scalar bits through numeric tape")
+		if restored_payload.ok:
+			payload = restored_payload.value
+		if int(item.get("transferArrays", 0)) == 0:
+			var restored_row := SourceFixtureSections.restore_numbers(rows[index], tape)
+			_check(restored_row.ok, "Restore inline source chunk scalar bits through numeric tape")
+			if restored_row.ok:
+				rows[index] = restored_row.value
 		for field: String in item.expected:
 			_bits(payload[field], item.expected[field], "Original browser JSON scalar bits survive native parsing: " + field)
 			_bits(rows[index][field], item.expected[field], "Original inline/sidecar source numeric bits survive native decoding: " + field)

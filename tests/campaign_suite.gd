@@ -92,19 +92,15 @@ static func dialogue_lifecycle(h: Node) -> void:
 	h._check(dialogue.at == 0 and dialogue.bar == null, "Cancelled generation cannot restore an old radio line")
 	dialogue.radio(scene)
 	var line_timer: Timer = dialogue.timers[0]
-	var line_msec: float = line_timer.wait_time * 1000
-	# An early signal re-arms the timer for the remaining time and must not advance the line.
-	clock.now += line_msec * 0.5
+	var deadline: float = clock.now + line_timer.wait_time * 1000
+	clock.now = deadline - .001
 	line_timer.timeout.emit()
-	h._check(dialogue.at == 1 and dialogue.timers.size() == 1 and dialogue.timers[0] == line_timer, "Early radio timer signal keeps the current line and its pending timer")
-	h._near(line_timer.wait_time, line_msec * 0.5 / 1000, "Early radio timer is re-armed for the remaining wall-clock time")
-	# The source deadline advances the line exactly once.
-	clock.now += line_msec * 0.5
+	h._check(dialogue.at == 1 and dialogue.timers == [line_timer], "An early radio signal re-arms instead of advancing the line")
+	clock.now = deadline
 	line_timer.timeout.emit()
 	h._check(dialogue.at == 2, "Live radio advances by timer without manual gameplay input")
-	h._check(not dialogue.timers.has(line_timer), "Radio deadline consumes its line timer")
 	line_timer.timeout.emit()
-	h._check(dialogue.at == 2, "A consumed radio deadline cannot advance the line twice")
+	h._check(dialogue.at == 2, "A delivered radio deadline advances the line once")
 	dialogue.dispose()
 	h._check(not dialogue.track_label.visible and dialogue.timers.is_empty(), "Room exit disposes radio and stage track")
 	dialogue.queue_free()

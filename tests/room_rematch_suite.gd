@@ -11,8 +11,9 @@ class RollSession extends SessionScript:
 class PacketProbe extends BattleSimulation:
 	var snapshots := 0
 	var body_packets := 0
-	func apply_snapshot(_data: Dictionary) -> void:
+	func apply_snapshot(_data: Dictionary) -> bool:
 		snapshots += 1
+		return true
 	func receive_body_events(_received: Array, _now: float) -> void:
 		body_packets += 1
 

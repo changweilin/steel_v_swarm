@@ -18,6 +18,7 @@ function Invoke-WorldTool([string]$Name, [string]$Executable, [string[]]$Argumen
     $stderr = Join-Path $migrationLogs "$Name-errors.log"
     $quoted = $Arguments | ForEach-Object { '"' + $_ + '"' }
     $process = Start-Process -FilePath $Executable -ArgumentList $quoted -WorkingDirectory $migrationRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+    $null = $process.Handle
     Write-Output "WORLD_STEP_STARTED step=$Name owned_pid=$($process.Id) log=$stdout"
     $started = [DateTime]::UtcNow
     try {
@@ -46,6 +47,7 @@ $manifestErrors = Join-Path $migrationLogs 'manifest-errors.log'
 $manifestArguments = @((Join-Path $PSScriptRoot 'bake_worlds.mjs'), '--list-bundles') + $selection
 $quotedManifest = $manifestArguments | ForEach-Object { '"' + $_ + '"' }
 $manifestProcess = Start-Process -FilePath $migrationNode -ArgumentList $quotedManifest -WorkingDirectory $migrationRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $manifestFile -RedirectStandardError $manifestErrors
+$null = $manifestProcess.Handle
 try {
     if (-not $manifestProcess.WaitForExit(60000)) { throw 'Source world manifest enumeration timed out' }
     $manifestProcess.WaitForExit()

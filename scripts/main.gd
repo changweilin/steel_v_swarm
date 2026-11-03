@@ -88,6 +88,9 @@ var selected_slot := "light"
 var aiming := false
 var aim_request := 0
 var aim_state_clock := -INF
+# Reliable `weapon_fire` events can overtake the first snapshot that creates the local pilot.
+const PENDING_FIRE_LIMIT := 16
+var pending_fire_events: Array[Dictionary] = []
 var wheel_at := -100.0
 var released_controls: Dictionary = {}
 var yaw := 0.0
@@ -135,6 +138,7 @@ var status_icons := StatusIconState.new()
 var status_icon_strip: StatusIconStrip
 var room_world_resources := RoomWorldResources.new()
 var room_world_prebuild := RoomWorldPrebuild.new()
+var retiring_simulation: WeakRef
 var room_preload_box: VBoxContainer
 var room_preload_label: Label
 var room_preload_progress: ProgressBar
@@ -166,6 +170,8 @@ func _ready() -> void:
 	Session.status_changed.connect(_status)
 	Session.lobby_changed.connect(_update_lobby)
 	Session.state_received.connect(_receive_state)
+	# The source watchdog counts every delivered packet, including one a replica rejects.
+	Session.snapshot_heard.connect(func(): fatal_watchdog.snapshot(_fatal_now()))
 	Session.body_event_received.connect(_body_event_feedback)
 	Session.room_cleared.connect(_room_cleared)
 	Session.room_returned.connect(_room_returned)
@@ -225,6 +231,8 @@ func _ready() -> void:
 		ui.visible = false
 		var server_port := int(_argument("--port", "8620"))
 		var settings := {"map_index": int(_argument("--map", "0")), "team_size": int(_argument("--team-size", "1")), "super": arguments.has("--super"), "ctrl": Controls.pref, "env": {"weather": "clear", "time": "day"}}
+		if arguments.has("--season"):
+			settings.env.season = _argument("--season", "summer")
 		if arguments.has("--campaign"):
 			var chapter := _argument("--campaign", "")
 			var faction := _argument("--side", "STEEL")
@@ -820,7 +828,8 @@ func _update_preload_status() -> void:
 	room_preload_progress.visible = not failed and not ready
 
 func _update_lobby() -> void:
-	if Session.active and Session.phase == "room" and not Session.dedicated and not Session.leaving:
+	var world_retiring := retiring_simulation != null and retiring_simulation.get_ref() != null
+	if Session.active and Session.phase == "room" and not Session.dedicated and not Session.leaving and not world_retiring:
 		room_world_prebuild.request(Session.config)
 	_update_preload_status()
 	if return_button != null:
@@ -1004,6 +1013,7 @@ func _begin_battle(settings: Dictionary, players: Array) -> void:
 	if audio != null:
 		audio.set_scene("battle")
 	body_frame = 0
+	pending_fire_events.clear()
 	_refresh_creep_shop()
 	Session.simulation = simulation
 	simulation.view_snapshot_ready.connect(_prepare_death_snapshot)
@@ -1236,15 +1246,28 @@ func _process(delta: float) -> void:
 		civilian_prompt.text = Content.label("civilian_prompt") % [appearance.occupation, Content.side_info(civilian.special.civil_side).name]
 	pip_view.update_view(simulation, pilot, Session.chosen_side, get_viewport().scaling_3d_scale)
 
+# Original _moveAxis reads the stick's double f/r once mag is positive; the published
+# Vector2 is rounded to Float32 and cannot carry these decisions.
+func _touch_axis() -> Dictionary:
+	var stick: Dictionary = touch_controls.state.move_stick
+	if not float(stick.mag) > 0:
+		return {"f": 0.0, "r": 0.0, "mag": 0.0}
+	var forward := float(stick.y)
+	var right := float(stick.x)
+	return {"f": forward, "r": right, "mag": sqrt(forward * forward + right * right)}
+
 func _advance_spectator(delta: float) -> void:
 	var motion := Vector2(_control("right") - _control("left"), _control("back") - _control("forward"))
 	var touch: Dictionary = touch_controls.held if touch_controls != null and touch_controls.visible else {}
-	if motion == Vector2.ZERO and touch_controls != null and touch_controls.visible:
+	var touched := motion == Vector2.ZERO and touch_controls != null and touch_controls.visible and not overlay_open
+	if touched:
 		motion = touch_controls.state.axis
 	if overlay_open:
 		motion = Vector2.ZERO
 	var axis := {"f": -motion.y, "r": motion.x, "mag": motion.length(),
 		"boost": (_control("sprint") > 0 or touch.get("sprint", false)) and not overlay_open}
+	if touched:
+		axis.merge(_touch_axis(), true)
 	var angles := spectator_camera.advance(clampf(delta, 0, float(Content.balance.view.frameCap)), Vector2(yaw, pitch), axis,
 		(_control("rise") > 0 or touch.get("jump", false)) and not overlay_open,
 		(_control("descend") > 0 or touch.get("dive", false)) and not overlay_open)
@@ -1377,7 +1400,7 @@ func _advance_view(delta: float, pilot: BattleUnit) -> void:
 	if not pilot.flying and not pilot.fluid_environment.get("air", false):
 		for fire: Dictionary in simulation.fire_fields:
 			var radius: float = float(Content.constants.HAZARDS[fire.kind].r) * float(fire.scale)
-			if Vector2(pilot.position.x - fire.position.x, pilot.position.z - fire.position.z).length() <= radius:
+			if SourceNumeric.hypot(pilot.position.x - fire.position.x, pilot.position.z - fire.position.z) <= radius:
 				in_fire = true
 				break
 	scope_state.advance(step, in_fire, float(simulation.weather_dynamics.get("effectiveFog", 0)), pilot.alive())
@@ -1732,7 +1755,12 @@ func _body_event_feedback(event: Dictionary) -> void:
 	if simulation == null or event.get("type") != "weapon_fire" or not event.has("serial"):
 		return
 	var pilot: BattleUnit = simulation.pilots.get(Session.player_id())
-	if pilot == null or int(event.actor) != pilot.entity_id:
+	if pilot == null:
+		if pending_fire_events.size() >= PENDING_FIRE_LIMIT:
+			pending_fire_events.pop_front()
+		pending_fire_events.append(event)
+		return
+	if int(event.actor) != pilot.entity_id:
 		return
 	_bind_camera(pilot)
 	pilot.cockpit.fire_feedback(event)
@@ -1800,14 +1828,17 @@ func _physics_process(delta: float) -> void:
 		return
 	var motion := Vector2(_control("right") - _control("left"), _control("back") - _control("forward")).limit_length()
 	var touch: Dictionary = touch_controls.held if touch_controls != null and touch_controls.visible else {}
+	var move_magnitude := motion.length()
 	if motion == Vector2.ZERO and touch_controls != null and touch_controls.visible:
 		motion = touch_controls.state.axis
+		move_magnitude = _touch_axis().mag
 	var pilot: BattleUnit = simulation.pilots.get(Session.player_id())
 	if pilot != null and not pilot.alive():
 		touch["fire"] = false
 		if Input.get_action_strength("fire") > 0:
 			released_controls["fire"] = true
 	var command := {"move": motion if not overlay_open else Vector2.ZERO,
+		"move_mag": move_magnitude if not overlay_open else 0.0,
 		"yaw": yaw, "pitch": pitch, "vertical": maxf(_control("rise"), float(touch.get("jump", false))) - maxf(_control("descend"), float(touch.get("dive", false))) if not overlay_open else 0.0,
 		"jump": held_jump and not overlay_open, "fire": (_control("fire") > 0 or touch.get("fire", false)) and not overlay_open,
 		"jump_held": (_control("rise") > 0 or touch.get("jump", false)) and not overlay_open,
@@ -1879,6 +1910,15 @@ func _physics_process(delta: float) -> void:
 				print("SMOKE_PASS units=", simulation.units.size(), " wave=", simulation.wave)
 				get_tree().quit()
 
+# Original relay event branch: a starburst 9 above the terrain, independent of the feed.
+func _relay_activation(event: Dictionary) -> void:
+	if event.type != "relay" or Session.dedicated:
+		return
+	var point: Vector3 = event.position
+	var height := simulation.world.ground_height(point.x, point.z) + 9
+	var color := Color(Content.side_info(event.side).color).to_rgba32() >> 8 if not str(event.side).is_empty() else 0x66ffe0
+	simulation.world.ensure_combat_effects().spark(Vector3(point.x, height, point.z), 8, color)
+
 func _receive_state(state: Dictionary) -> void:
 	fatal_watchdog.snapshot(_fatal_now())
 	smoke_state_seen = true
@@ -1906,6 +1946,10 @@ func _receive_state(state: Dictionary) -> void:
 		push_error("Missing owned control-state publication; matching native client and authority content are required")
 		return
 	if pilot != null:
+		var held := pending_fire_events.duplicate()
+		pending_fire_events.clear()
+		for event: Dictionary in held:
+			_body_event_feedback(event)
 		var defense_frame := _defense_frame(pilot)
 		defense_frame.frozen = float(published_controls.get("freezeLeft", 0)) > 0
 		local_defense.observe_snapshot(defense_frame, Time.get_ticks_usec() / 1000000.0)
@@ -1925,6 +1969,7 @@ func _receive_state(state: Dictionary) -> void:
 		if is_instance_valid(spectator_camera):
 			for event: Dictionary in state.events:
 				if combat_feed.accept(event):
+					_relay_activation(event)
 					for text: String in CombatFeedState.messages(event, 0, Session.player_id(), ""):
 						feed.push_message(text)
 		return
@@ -1945,6 +1990,7 @@ func _receive_state(state: Dictionary) -> void:
 		pilot.sync_view_camera()
 	for event: Dictionary in state.events:
 		if combat_feed.accept(event):
+			_relay_activation(event)
 			_supply_notice(event, pilot)
 			if event.type == "burn" and int(event.get("actor", 0)) == pilot.entity_id:
 				status_icons.burn_at = Time.get_ticks_usec() / 1000000.0
@@ -2429,6 +2475,10 @@ func _room_cleared() -> void:
 	_reset_death_view()
 	view_occlusion.dispose()
 	if simulation != null:
+		# A native world holds most of the mesh RID budget. Loading the next one on
+		# worker threads while this one is freed races the renderer's RID owner.
+		retiring_simulation = weakref(simulation)
+		simulation.tree_exited.connect(_update_lobby, CONNECT_DEFERRED | CONNECT_ONE_SHOT)
 		simulation.queue_free()
 		simulation = null
 	view_ready = false

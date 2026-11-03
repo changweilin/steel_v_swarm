@@ -7,10 +7,12 @@ the canonical importer to validate original hashes, the captured generator and
 offline runtime, native world inputs, required fixture keys and complete outputs
 before publication. Keep that producer identity on every fixture section. Do not
 relabel an older capture after editing the generator or copy source-editor
-`.import` descriptors into the native project:
+`.import` descriptors into the native project. Run no `godot --import` while a
+stage is inside the project: it scans `artifacts/` and writes descriptors there,
+which publication rejects. Move the stage out before reimporting:
 
 ```powershell
-node tools/import_source.mjs C:/path/to/steel_vs_swarm --output-root artifacts/source-capture
+node --max-old-space-size=8192 tools/import_source.mjs C:/path/to/steel_vs_swarm --output-root artifacts/source-capture
 node tools/import_source.mjs C:/path/to/steel_vs_swarm --publish-stage artifacts/source-capture
 godot --headless --path . res://tests/fixture_registry.tscn
 ```
@@ -45,6 +47,23 @@ publication. Each seals its
 producer, rechecks all published original input
 hashes and rejects a changed destination without replacing unrelated sections.
 
+Story, loading and logo art (`tools/native_images.mjs`) publishes original PNGs
+verbatim and decodes JPEG-under-PNG originals in Chromium into lossless PNGs at
+their authored paths. The focused run first verifies every provenance input
+against the source snapshot:
+
+```powershell
+node tools/import_source.mjs C:/path/to/steel_vs_swarm --native-images
+godot --headless --path . --import
+godot --headless --path . res://tests/native_images.tscn
+```
+
+It accepts the same `--playwright-module`/`--chrome` overrides as below. Godot
+never retries an image whose `.import` records `valid=false`; after republishing,
+remove only that stale marker and let `--import` regenerate the descriptor.
+`assets/logo_flat.png` imports with `fix_alpha_border=false` so faint alpha edges
+keep their original colour.
+
 For the isolated procedural-envelope source comparison:
 
 ```powershell
@@ -57,4 +76,4 @@ and `--chrome C:/path/to/chrome.exe` when the source development browser helper
 is unavailable. It verifies the existing audio-source provenance before atomic
 publication and rejects source or destination changes during capture. The scene
 checks only the envelope; playback, resampling and audible integration require
-the Sol consumer's acceptance.
+the Sonnet presentation consumer's acceptance.

@@ -1,6 +1,6 @@
-param([Parameter(Mandatory = $true)][string]$Godot, [switch]$LobControl, [switch]$KineticShots, [switch]$MissileShots, [switch]$Reachability, [switch]$Footprints, [switch]$Cockpits, [switch]$Cameras, [switch]$Bursts, [switch]$Projectiles, [switch]$Aiming, [switch]$MissileDefenses, [switch]$Bots, [switch]$Bosses, [switch]$Campaign, [switch]$Super, [switch]$Controls, [switch]$Mobile, [switch]$View, [switch]$Bodies, [switch]$Tps, [switch]$Deaths, [switch]$Blasts, [switch]$Rooms, [switch]$Loading, [switch]$Roster, [switch]$Members, [switch]$Spectators, [switch]$LateSpectators, [switch]$Rematch, [switch]$Recovery, [switch]$RecoveryQueue, [switch]$SnapshotEvents, [switch]$QuickRestart, [switch]$Fatal, [switch]$Pips, [switch]$HeadMarks, [switch]$VitalBars, [switch]$Minimap, [switch]$Balance, [ValidateSet("enet", "websocket")][string[]]$Transport = @("enet", "websocket"))
+param([Parameter(Mandatory = $true)][string]$Godot, [switch]$LobControl, [switch]$KineticShots, [switch]$MissileShots, [switch]$Reachability, [switch]$Footprints, [switch]$Cockpits, [switch]$Cameras, [switch]$Bursts, [switch]$Projectiles, [switch]$Aiming, [switch]$MissileDefenses, [switch]$Bots, [switch]$Bosses, [switch]$Campaign, [switch]$Super, [switch]$Controls, [switch]$Mobile, [switch]$View, [switch]$Bodies, [switch]$Tps, [switch]$Deaths, [switch]$Blasts, [switch]$Rooms, [switch]$Loading, [switch]$Roster, [switch]$Members, [switch]$Spectators, [switch]$LateSpectators, [switch]$Rematch, [switch]$Recovery, [switch]$RecoveryQueue, [switch]$SnapshotEvents, [switch]$QuickRestart, [switch]$Fatal, [switch]$Pips, [switch]$HeadMarks, [switch]$VitalBars, [switch]$Minimap, [switch]$Balance, [switch]$LobbyLatency, [ValidateSet("enet", "websocket")][string[]]$Transport = @("enet", "websocket"))
 $ErrorActionPreference = 'Stop'
-if (@($LobControl, $KineticShots, $MissileShots, $Reachability, $Footprints, $Cockpits, $Cameras, $Bursts, $Projectiles, $Aiming, $MissileDefenses, $Bots, $Bosses, $Campaign, $Super, $Controls, $Mobile, $View, $Bodies, $Tps, $Deaths, $Blasts, $Rooms, $Loading, $Roster, $Members, $Spectators, $LateSpectators, $Rematch, $Recovery, $RecoveryQueue, $SnapshotEvents, $QuickRestart, $Fatal, $Pips, $HeadMarks, $VitalBars, $Minimap, $Balance).Where({ $_ }).Count -gt 1) { throw 'Choose one gameplay transport fixture per run' }
+if (@($LobControl, $KineticShots, $MissileShots, $Reachability, $Footprints, $Cockpits, $Cameras, $Bursts, $Projectiles, $Aiming, $MissileDefenses, $Bots, $Bosses, $Campaign, $Super, $Controls, $Mobile, $View, $Bodies, $Tps, $Deaths, $Blasts, $Rooms, $Loading, $Roster, $Members, $Spectators, $LateSpectators, $Rematch, $Recovery, $RecoveryQueue, $SnapshotEvents, $QuickRestart, $Fatal, $Pips, $HeadMarks, $VitalBars, $Minimap, $Balance, $LobbyLatency).Where({ $_ }).Count -gt 1) { throw 'Choose one gameplay transport fixture per run' }
 $projectRoot = Split-Path $PSScriptRoot -Parent
 $processes = @()
 $recoveryStores = @()
@@ -16,6 +16,7 @@ try {
             $queueArguments = @('--headless', '--path', $projectRoot, $isolatedScene, '--', "--port=$listenPort")
             if ($mode -eq 'websocket') { $queueArguments += '--websocket' }
             $queue = Start-Process -FilePath $Godot -ArgumentList $queueArguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$projectRoot/tests/$mode-$isolatedName.log" -RedirectStandardError "$projectRoot/tests/$mode-$isolatedName-errors.log"
+            $null = $queue.Handle
             $processes += $queue
             $isolatedTimeout = if ($SnapshotEvents) { 90000 } else { 40000 }
             if (-not $queue.WaitForExit($isolatedTimeout)) { throw "$mode $isolatedName test timed out" }
@@ -34,7 +35,7 @@ try {
         if ($Cockpits) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/cockpit_network.tscn', '--', '--server', '--port', $listenPort) }
         if ($Cameras) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/camera_network.tscn', '--', '--server', '--port', $listenPort) }
         if ($Bursts) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/burst_network.tscn', '--', '--server', '--port', $listenPort) }
-        if ($Projectiles) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/projectile_visual_network.tscn', '--', '--server', '--port', $listenPort) }
+        if ($Projectiles) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/projectile_visual_network.tscn', '--', '--server', '--port', $listenPort, '--season', 'summer') }
         if ($Aiming) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/aiming_network.tscn', '--', '--server', '--port', $listenPort) }
         if ($MissileDefenses) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/missile_defense_network.tscn', '--', '--server', '--port', $listenPort) }
         if ($Bots) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/bot_network.tscn', '--', '--server', '--port', $listenPort) }
@@ -63,16 +64,18 @@ try {
         if ($VitalBars) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/vital_bar_network.tscn', '--', '--server', '--port', $listenPort) }
         if ($Minimap) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/minimap_network.tscn', '--', '--server', '--port', $listenPort) }
         if ($Balance) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/balance_network.tscn', '--', '--server', '--port', $listenPort) }
+        if ($LobbyLatency) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/lobby_latency_network.tscn', '--', '--server', '--port', $listenPort) }
         $serverArguments += @('--view', $(if ($Tps) { 'tps' } else { 'fpv' }))
         if ($mode -eq 'websocket') { $serverArguments += '--websocket' }
         $server = Start-Process -FilePath $Godot -ArgumentList $serverArguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$projectRoot/tests/$mode-server.log" -RedirectStandardError "$projectRoot/tests/$mode-server-errors.log"
+        $null = $server.Handle
         $processes += $server
         if ($QuickRestart) {
             $quickDeadline = [DateTime]::UtcNow.AddSeconds(45)
             do {
                 $server.Refresh()
                 if ($server.HasExited) { throw "$mode quick-restart authority exited before launching the saved match" }
-                $quickLog = [string](Get-Content -LiteralPath "$projectRoot/tests/$mode-server.log" -Raw -ErrorAction SilentlyContinue)
+                $quickLog = "$(Get-Content -LiteralPath "$projectRoot/tests/$mode-server.log" -Raw -ErrorAction SilentlyContinue)"
                 if ($quickLog.Contains('QUICK_RESTART_READY')) { break }
                 if ([DateTime]::UtcNow -ge $quickDeadline) { throw "$mode saved match did not finish authority preparation" }
                 Start-Sleep -Milliseconds 100
@@ -117,6 +120,7 @@ try {
         if ($VitalBars) { $clientArguments = @('--headless', '--path', $projectRoot, 'res://tests/vital_bar_network.tscn', '--', '--connect', $target, '--port', $listenPort, '--character', 't01', '--side', 'STEEL') }
         if ($Minimap) { $clientArguments = @('--headless', '--path', $projectRoot, 'res://tests/minimap_network.tscn', '--', '--connect', $target, '--port', $listenPort, '--character', 't01', '--side', 'STEEL') }
         if ($Balance) { $clientArguments = @('--headless', '--path', $projectRoot, 'res://tests/balance_network.tscn', '--', '--connect', $target, '--port', $listenPort, '--character', 't01', '--side', 'STEEL') }
+        if ($LobbyLatency) { $clientArguments = @('--headless', '--path', $projectRoot, 'res://tests/lobby_latency_network.tscn', '--', '--connect', $target, '--port', $listenPort, '--character', 't01', '--side', 'STEEL') }
         $clientArguments += @('--view', $(if ($Tps) { 'tps' } else { 'fpv' }), '--ready-start')
         if ($Rooms) { $clientArguments += @('--name', 'RoomClient_01') }
         if ($Recovery) {
@@ -124,11 +128,12 @@ try {
             $recoveryStores += Join-Path $projectRoot "tests/$mode-recovery-$recoveryRunId.cfg"
             $clientArguments += @('--session-store', $storeResource)
             $firstClient = Start-Process -FilePath $Godot -ArgumentList $clientArguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$projectRoot/tests/$mode-recovery-first.log" -RedirectStandardError "$projectRoot/tests/$mode-recovery-first-errors.log"
+            $null = $firstClient.Handle
             $processes += $firstClient
             if (-not $firstClient.WaitForExit(30000)) { throw "$mode initial recovery client timed out" }
             $firstLog = Get-Content -LiteralPath "$projectRoot/tests/$mode-recovery-first.log" -Raw
             $firstErrors = Get-Content -LiteralPath "$projectRoot/tests/$mode-recovery-first-errors.log" -Raw
-            if ($firstClient.ExitCode -ne 0 -or $firstLog -notmatch 'NETWORK_RECOVERY_FIRST_PASS' -or ([string]$firstErrors).Trim()) { throw "$mode initial recovery client failed: $firstLog $firstErrors" }
+            if ($firstClient.ExitCode -ne 0 -or $firstLog -notmatch 'NETWORK_RECOVERY_FIRST_PASS' -or "$firstErrors".Trim()) { throw "$mode initial recovery client failed: $firstLog $firstErrors" }
             $heldDeadline = [DateTime]::UtcNow.AddSeconds(15)
             do {
                 $server.Refresh()
@@ -141,12 +146,13 @@ try {
             $clientArguments = @('--headless', '--path', $projectRoot, 'res://tests/room_recovery_network.tscn', '--', '--resume', '--session-store', $storeResource)
         }
         $client = Start-Process -FilePath $Godot -ArgumentList $clientArguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$projectRoot/tests/$mode-client.log" -RedirectStandardError "$projectRoot/tests/$mode-client-errors.log"
+        $null = $client.Handle
         $processes += $client
         if ($LateSpectators) {
             $lateDeadline = [DateTime]::UtcNow.AddSeconds(20)
             do {
                 if ($client.HasExited) { throw "$mode player exited before late observer admission" }
-                $lateLog = [string](Get-Content -LiteralPath "$projectRoot/tests/$mode-client.log" -Raw -ErrorAction SilentlyContinue)
+                $lateLog = "$(Get-Content -LiteralPath "$projectRoot/tests/$mode-client.log" -Raw -ErrorAction SilentlyContinue)"
                 if ($lateLog.Contains('LATE_SPECTATOR_READY')) { break }
                 if ([DateTime]::UtcNow -ge $lateDeadline) { throw "$mode did not reach the active match before observer admission" }
                 Start-Sleep -Milliseconds 100
@@ -156,9 +162,10 @@ try {
             $observerArguments = @('--headless', '--path', $projectRoot, 'res://tests/spectator_network.tscn', '--', '--connect', $target, '--port', $listenPort, '--character', 's01', '--side', 'SWARM', '--observer', '--ready-start')
             if ($LateSpectators) { $observerArguments += @('--spectator', '--late') }
             $observer = Start-Process -FilePath $Godot -ArgumentList $observerArguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$projectRoot/tests/$mode-observer.log" -RedirectStandardError "$projectRoot/tests/$mode-observer-errors.log"
+            $null = $observer.Handle
             $processes += $observer
         }
-        if (-not $client.WaitForExit($(if ($Rematch) { 40000 } elseif ($Recovery -or $QuickRestart) { 35000 } else { 60000 }))) { throw "$mode connection test timed out" }
+        if (-not $client.WaitForExit($(if ($Rematch) { 40000 } elseif ($Recovery -or $QuickRestart) { 35000 } elseif ($Projectiles) { 120000 } else { 60000 }))) { throw "$mode connection test timed out" }
         $log = Get-Content -LiteralPath "$projectRoot/tests/$mode-client.log" -Raw
         $errors = Get-Content -LiteralPath "$projectRoot/tests/$mode-client-errors.log" -Raw
         $serverErrors = Get-Content -LiteralPath "$projectRoot/tests/$mode-server-errors.log" -Raw
@@ -178,6 +185,7 @@ try {
         if ($Tps -and $log -notmatch 'NETWORK_TPS_PASS') { throw "$mode TPS fixture failed: $log $errors $serverErrors" }
         if ($Deaths -and $log -notmatch 'NETWORK_DEATH_PASS') { throw "$mode death fixture failed: $log $errors $serverErrors" }
         if ($Blasts -and $log -notmatch 'NETWORK_BLAST_PASS') { throw "$mode blast fixture failed: $log $errors $serverErrors" }
+        if ($LobbyLatency -and $log -notmatch 'NETWORK_LOBBY_LATENCY_PASS') { throw "$mode lobby latency fixture failed: $log $errors $serverErrors" }
         if ($Rooms -and ($log -notmatch 'NETWORK_ROOM_PASS' -or $serverLog -notmatch 'NETWORK_ROOM_SERVER_CLEARED')) { throw "$mode room fixture failed: $log $serverLog $errors $serverErrors" }
         if ($Loading -and $log -notmatch 'NETWORK_ROOM_LOADING_PASS') { throw "$mode loading fixture failed: $log $errors $serverErrors" }
         if ($Roster -and $log -notmatch 'NETWORK_ROOM_ROSTER_PASS') { throw "$mode roster fixture failed: $log $errors $serverErrors" }
@@ -195,7 +203,7 @@ try {
             if (-not $observer.WaitForExit(20000)) { throw "$mode observer fixture timed out" }
             $observerLog = Get-Content -LiteralPath "$projectRoot/tests/$mode-observer.log" -Raw
             $observerErrors = Get-Content -LiteralPath "$projectRoot/tests/$mode-observer-errors.log" -Raw
-            if ($observer.ExitCode -ne 0 -or $log -notmatch 'NETWORK_SPECTATOR_PASS' -or $observerLog -notmatch 'NETWORK_SPECTATOR_PASS' -or ([string]$observerErrors).Trim()) { throw "$mode spectator fixture failed: $log $observerLog $observerErrors $errors $serverErrors" }
+            if ($observer.ExitCode -ne 0 -or $log -notmatch 'NETWORK_SPECTATOR_PASS' -or $observerLog -notmatch 'NETWORK_SPECTATOR_PASS' -or "$observerErrors".Trim()) { throw "$mode spectator fixture failed: $log $observerLog $observerErrors $errors $serverErrors" }
         }
         if ($client.ExitCode -ne 0 -or $log -notmatch 'NETWORK_PASS' -or ($LobControl -and $log -notmatch 'NETWORK_LOB_PASS') -or ($KineticShots -and $log -notmatch 'NETWORK_KINETIC_PASS') -or ($MissileShots -and $log -notmatch 'NETWORK_MISSILE_PASS') -or ($Reachability -and $log -notmatch 'NETWORK_REACHABILITY_PASS') -or ($Footprints -and $log -notmatch 'NETWORK_FOOTPRINT_PASS') -or ($Cockpits -and $log -notmatch 'NETWORK_COCKPIT_PASS') -or ($Cameras -and $log -notmatch 'NETWORK_CAMERA_PASS') -or $errors -match 'ERROR|above the MTU' -or $serverErrors -match 'ERROR|above the MTU') {
             throw "$mode failed: $log $errors $serverErrors"

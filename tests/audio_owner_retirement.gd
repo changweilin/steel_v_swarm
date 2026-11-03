@@ -292,6 +292,16 @@ func _routing_loss(routing: AudioBuses) -> void:
 	var clip := NativeAudioClip.new()
 	clip.panned.append(Silent.stream())
 	_check(sfx.start(clip, routing, .5, .25) == OK and sfx.players[0].playing, "Routing loss exercises a playing routed SFX")
+	var sampled := AudioVoice.new()
+	add_child(sampled)
+	var sample_clip := NativeAudioClip.new()
+	sample_clip.source = {"layer": "sample"}
+	var sample_wave := Silent.stream()
+	sample_wave.loop_mode = AudioStreamWAV.LOOP_DISABLED
+	sample_clip.panned.append(sample_wave)
+	_check(sampled.start(sample_clip, routing, .5, .25) == OK and sampled.sample_mixer != null,
+		"Routing loss exercises sample streaming alongside the movement worker")
+	var sample_worker: RefCounted = routing.sample_worker
 	var fallback_voice: Dictionary = fallback.current
 	var track: ProbeLoop = music.created[0]
 	var bed: ProbeLoop = ambience.created[0]
@@ -302,6 +312,8 @@ func _routing_loss(routing: AudioBuses) -> void:
 	_check(movement.state.disposed and not movement.thread.is_started() and moving.disposed
 		and not moving.output_player.playing, "Context retirement joins the movement worker and stops its native output")
 	_check(sfx.disposed and not sfx.players[0].playing, "Context retirement stops SFX before its route can fall back to Master")
+	_check(sampled.disposed and not sampled.players[0].playing and sampled.sample_mixer.stats().stopped \
+		and not sample_worker.thread.is_started(), "Context retirement joins sample streaming before releasing its playback and buses")
 	for owner: Node in [music, ambience, fallback]:
 		owner.free()
 	movement.free()

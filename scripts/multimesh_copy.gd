@@ -1,11 +1,9 @@
 class_name MultiMeshCopy
 extends RefCounted
 
-# Godot 4.7.2 MultiMesh.duplicate() applies the buffer before instance_count,
-# which drops instance transforms. Copy the properties in a safe order instead.
-static func duplicate_multimesh(source: MultiMesh) -> MultiMesh:
-	if source == null:
-		return null
+# Godot 4.7.2 MultiMesh.duplicate() assigns the buffer before instance_count, so
+# the copy is built explicitly: format flags first, then the count, then the data.
+static func of(source: MultiMesh) -> MultiMesh:
 	var copy := MultiMesh.new()
 	copy.transform_format = source.transform_format
 	copy.use_colors = source.use_colors
@@ -14,9 +12,8 @@ static func duplicate_multimesh(source: MultiMesh) -> MultiMesh:
 	copy.instance_count = source.instance_count
 	copy.visible_instance_count = source.visible_instance_count
 	copy.custom_aabb = source.custom_aabb
-	# A renderer without instance storage (the headless dummy) reports an empty
-	# buffer; there is nothing to copy, and setting it would log a size mismatch.
-	var buffer := source.buffer
-	if not buffer.is_empty():
-		copy.buffer = buffer
+	# The dummy renderer keeps no buffer, and set_buffer rejects an empty one for a sized copy.
+	var data := source.buffer
+	if not data.is_empty():
+		copy.buffer = data
 	return copy

@@ -15,9 +15,8 @@ func push_message(message: String) -> void:
 	move_child(row, 0)
 	while get_child_count() > int(cfg.maximum):
 		get_child(get_child_count() - 1).free()
-	get_tree().create_timer(float(cfg.lifetime)).timeout.connect(func():
-		if is_instance_valid(row):
-			row.queue_free())
+	# Bound to the row so a cleared row drops the connection instead of a freed lambda capture.
+	get_tree().create_timer(float(cfg.lifetime)).timeout.connect(row.queue_free)
 
 func clear() -> void:
 	for row in get_children():

@@ -44,8 +44,7 @@ static func configure(body: BodyRig, seed_value: int, profession: int, side: Str
 			continue
 		for mount: String in ["hips", "head"]:
 			for child: Node3D in part.bindings[mount].get_children():
-				# Template nodes are owned by their packed part root; drop that owner before the root is discarded.
-				child.owner = null
+				_disown(child)
 				child.reparent(rig[mount], false)
 		part.root.free()
 	_register(body, body.source_root)
@@ -80,17 +79,12 @@ static func configure(body: BodyRig, seed_value: int, profession: int, side: Str
 		push_error("Missing original civilian outline width rules; regenerate source content")
 		return false
 	var width := OutlineRules.unit_width(target, Content.balance.outline)
-	# The captured shell widths follow the appearance and height scaling but not the shoulder-width scale of the
-	# torso/pelvis surfaces, so measure the bind pose with those surface scales neutral and restore them afterwards.
-	for surface: Node3D in main.bindings.surfaces.values():
-		body.poses.set_scale(surface, Vector3.ONE)
 	var inverse_basis := body.source_root.global_basis.inverse()
 	for node: Node3D in body.nodes.values():
 		if node.get_meta("isOutline", false):
+			# Source outlinify runs after all civilian appearance and height scaling.
 			node.set_meta("source_outline_uniforms", OutlineRules.local_uniforms(
 				inverse_basis * (node.get_parent() as Node3D).global_basis, width, Content.balance.outline))
-	for surface: Node3D in main.bindings.surfaces.values():
-		body.poses.set_scale(surface, Vector3(appearance.shoulderScale, 1, 1))
 	return SourceOutlineBinding.install(body.source_root)
 
 static func _part(key: String, appearance: Dictionary) -> Dictionary:
@@ -115,6 +109,8 @@ static func _part(key: String, appearance: Dictionary) -> Dictionary:
 					material.emission = _color(appearance, tokens.emission)
 				materials[id] = material
 			mesh.set_surface_override_material(index, materials[id])
+			# MeshInstance3D drops its overrides before freeing its render instance.
+			mesh.set_meta("retained_material_" + str(index), materials[id])
 	return {"root": root, "bindings": _decode(profile.bindings, nodes)}
 
 static func _color(appearance: Dictionary, token: Dictionary) -> Color:
@@ -165,3 +161,9 @@ static func _bounds(root: Node3D, frame: Node3D = null) -> AABB:
 		initialized = true
 	assert(initialized, "Original civilian must contain measurable geometry")
 	return result
+
+# Template nodes keep their packed-scene owner, which is freed with the part root.
+static func _disown(node: Node) -> void:
+	node.owner = null
+	for child: Node in node.get_children():
+		_disown(child)

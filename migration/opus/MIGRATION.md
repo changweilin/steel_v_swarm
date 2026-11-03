@@ -3,8 +3,8 @@
 Read [AGENTS.md](AGENTS.md). Current source metadata, fixture coverage and combined
 runtime acceptance remain incomplete. Component results do not certify the build.
 Publication and fixture commands are in [PUBLICATION.md](PUBLICATION.md); load them
-only for lane A. Bounded fixes that blocked this backlog are in
-[Sonnet](../sonnet/MIGRATION.md).
+only for lane A. Lane F's rig backlog is [models.md](models.md). Presentation,
+view, model-presentation and leased fixes are in [Sonnet](../sonnet/MIGRATION.md).
 
 ## Execution lanes
 
@@ -14,53 +14,129 @@ the other affected lane is idle. Shared publication in A stays single-writer.
 
 | Lane | Tasks | Exclusive Opus files |
 | --- | --- | --- |
-| A — Publication | O25, O26A, O27 | `tools/import_source.mjs`, `tools/world_references.mjs`, other shared `tools/*_references.mjs`, `scripts/content.gd`, `data/` outside SN8's bundles |
+| A — Publication | O26A | `tools/import_source.mjs`, `tools/world_references.mjs`, other shared `tools/*_references.mjs`, `scripts/content.gd`, `data/` outside SN8's bundles |
 | B — Render and numeric contracts | O26B, O3-O5 | `shaders/`, `scripts/source_cel_*.gd`, `scripts/source_outline_*.gd`, `scripts/source_texture_images.gd`, `scripts/source_fixture_sections.gd`, new shared numeric/font adapters, `tools/{outline,cel,texture}_*.mjs` |
 | C — Simulation | O6-O17 | `scripts/simulation.gd`, `scripts/unit.gd`, remaining Opus `scripts/*_rules.gd`, `scripts/*_math.gd` and authority helpers |
 | D — Session and rooms | O18-O22 | `scripts/session.gd`, Opus `scripts/room_*.gd`, `scripts/actor_snapshot.gd`, `scripts/match_recipe.gd`, `scripts/fatal_watchdog.gd` |
 | E — Integration | O23, O24 | `scripts/main.gd`, `scenes/main.tscn`, `project.godot`, export presets, `.github/`, `tests/run.*`, `tests/validation.json`, `tools/test_network.ps1`, `tools/export_web.ps1` |
+| F — Rigs and actor packing | M1, M2, M4-M11 ([models.md](models.md)) | Root rule 2a files, including `scripts/body_*.gd`, `scripts/cockpit_*.gd`, `tools/import_cockpits.gd`/`.tscn` and native actor scene outputs |
 
 ## Unblocking order
 
-O25 and O26 come first: they release SN8, then every populated case. Sol and Terra
-keep the full requests; find them by searching their backlogs for `**Opus`.
+O26 comes first: it releases SN8, then every populated case. Sonnet lane
+backlogs keep the full requests; find them by searching `migration/sonnet/` for
+`**Opus`. Requests below labelled `**Sonnet` are pulled by that lane.
 
-- [ ] **O25 — Source identity (lane A):** after SN7, choose one accepted snapshot, then
-  refresh provenance, producer declarations and consumer plans once through
-  `tools/import_source.mjs`. Covers original `rng.js`, `pool.js`, `lookPrefs.js`,
-  `movePrefs.js`, `audio_references.mjs`, `projectile_references.mjs` and the SN7
-  consumer changes. Requests: S4's three `rng.js` handoffs, "shared audio fixtures",
-  "shared audio provenance/consumer publication", "original presentation pool
-  provenance", "shared projectile fixture publication", "current particle
-  provenance" and Terra's "spectator, minimap, PiP, scope and dialogue provenance".
-  Land SN7's unique-staging `writeSourceFile` fix in the same change: 86
-  `tests/fixtures/*.json` captures pin the current `tools/fixture_json.mjs` bytes.
-  The reviewed patch is in the description of changweilin/steel_v_swarm#22.
-  `import_source.mjs` needs its npm dependencies installed; without them,
-  regenerate the consumer plan through `fixture_sections.mjs::refreshFixtureConsumers`.
+The accepted source snapshot is `changweilin/steel_vs_swarm` `634fcf23`, read
+from its checkout: `data/provenance.json` pins those exact bytes, including their
+line endings. Its deleted faction GLBs have no source consumer and were already
+removed from the port. Point `SVS_SOURCE` at that checkout; a commit-exact export
+has different line endings and fails the hash check.
+
+Each complete capture redraws the source's unseeded `Math.random` content (audio
+noise, animation phases, procedural textures) and the browser's rasters and
+decoded PCM. Republishing therefore invalidates native resources derived from
+those files, so publish a complete capture only for a source or producer change.
+
+Requests from the published capture:
+
+- **Sonnet presentation — native audio catalogue:** rerun the audio importers against the
+  published `data/audio_{clips,synth,move}.json`. Their noise realization and
+  Chromium 151 PCM no longer match the catalogue. Acceptance: `audio_suite` returns
+  to its one known `_buses` failure (`tests/audio_clip_suite.gd:30` adds 152 more)
+  and `tests/audio_lifecycle.tscn` clears its 6 movement noise/oscillator failures.
+- **Lane B — scope backdrop:** `shaders/scope_mask.gdshader` now blurs the composited
+  scope layer with the browser's Skia structure (Gaussian to sigma 4, half-resolution
+  above it, mirrored edges) and applies opacity to the blur and gradient as one group.
+  `tests/scope_raster.tscn` retains 2 failures: case 4 (1 pixel) and case 10 (2 pixels)
+  are 3/255 over two bytes at fire 0.35, weather 0.7. RGBA8 rounding after the fire
+  layer or the horizontal pass does not explain them. A single pass costs up to 625
+  samples per pixel at sigma 4 while fire fog shows, so `scripts/scope_overlay.gd`
+  needs separate horizontal and vertical passes before Web and mobile delivery (O24).
+
 - [ ] **O26 — World contracts:** complete before SN8.
-  - **O26A (lane A):** "layered-deck reference provenance", including signed-zero
-    preservation in `tools/world_references.mjs`.
-  - **O26B (lane B):** "float vertex colors" and "cel resource metadata". Add
-    "original sign emission" if the selected baseline bundle has active glow.
-    Godot 4.7.2 stores `ARRAY_COLOR` as RGBA8, and GDScript cannot read a
-    `StandardMaterial3D`'s generated shader, so lossless colors need an authored
-    world surface shader (O3) reading float storage. `ARRAY_CUSTOM0`/`1` already
-    carry marine data. The cel mismatch needs the selected bundle's mesh buffers.
-    "Exact native source JSON numbers" is exposed as
-    `SourceFixtureSections.restore_numeric_tape` (guarded by
-    `tests/source_numeric_tape.tscn`); its acceptance still needs Sol's binding
-    and a `tests/source_json.tscn` run against the original Chromium capture.
-- [ ] **O27 — Story media (lane A):** all 70 PNG-named `assets/story/` files hold
-  JPEG bytes. Complete Terra's "story image encoding", then publish
-  `assets/logo_flat.png` and `assets/loading/`. The offline copier preserves
-  authored bytes and excludes source-editor `.import` descriptors.
-  `Content.story_texture` rejects invalid imports before `load()`; keep
-  `tests/story_texture.tscn` passing once the encoded art loads with mipmaps.
+  - **O26A (lane A):** "layered-deck reference provenance". The producer is
+    finished: `tools/world_references.mjs` on a real `berlin_1_autumn` copy, with
+    its captured inputs restored, changes only `collision.deckEndTolerance`,
+    `deckProbes` and `deckReferences` and keeps all 99 negative zeros. Remaining is
+    the SN8/presentation-lane handoff. Every bundle pins an older `public/js/charPreview.js`
+    than the accepted snapshot (`20051639` or `41be0416`), and current tools change
+    the generator fingerprints, so `bake_worlds.mjs --reuse` cannot qualify them:
+    each selected bundle needs a full recapture through `tools/migrate_worlds.ps1`,
+    which already runs the reference step. Do not replace the declared hashes.
+    `tools/import_worlds.gd` must reject a bundle unless
+    `deckReferences.sourceFingerprint` equals `source.fingerprint` and
+    `deckReferences.inputs["public/js/biomes.js"]` equals
+    `source.inputs["public/js/biomes.js"]`. Acceptance: `tests/worlds.tscn --
+    --bundle=<bundle>` accepts the regenerated bundle and rejects a copy with
+    either field altered.
+  - **O26B accepted; SN8 binds it in `tools/source_world_meshes.gd`,
+    `tools/import_worlds.gd` and `tests/worlds.gd`:**
+    - Numbers: `SourceFixtureSections.restore_numbers(tree, float64_bytes)` returns
+      `{ok, value}` or `{ok: false, error}`, leaving a rejected tree unchanged. Inline
+      values need a published tape restored before `_decode`. `tests/numeric_tape.tscn`
+      guards it. `tests/source_json.gd` must assert the restored value: bare
+      `JSON.parse_string` still rounds 1,884 of the fixture's 13,280 words.
+      SN8's request for a world-colour tape is declined: source colours are Float32, so
+      `_float32_colors` recovers their exact bits, while a tape would change the chunk
+      format and force a recapture of every bundle for no output change. Doubles that
+      are not Float32-exact still need a tape.
+    - Colours: for each surface with `vertexColors`, store
+      `SourceCelVertexColors.encode(colors, colorSize, vertices).value` in
+      `SourceCelVertexColors.ARRAY_SLOT` with `FORMAT` in the surface flags, instead of
+      `ARRAY_COLOR`, and use `SourceCelVertexColors.material(base)`. Instance-tinted
+      surfaces without vertex colours use `material(base, false)`. `tests/worlds.gd`
+      compares that attribute byte-for-byte; remove the importer rejection and the
+      1/255 tolerance. Each vertex grows from 4 to 16 colour bytes. `material()` returns
+      one shared resource per equal surface state, because a world holds over 230,000
+      surfaces and Godot caps material RIDs at 262,144 (exceeding it crashes). Never
+      mutate its result: `tools/import_worlds.gd` still writes `render_priority` for
+      `entry.water`, which is safe only while those surfaces stay marine. Mesh RIDs share
+      that cap and a Berlin world uses 231,753, so two loaded worlds cannot coexist. These are
+      `ShaderMaterial`s, so `albedo_color` consumers must use the `uSourceAlbedo`
+      parameter: `scripts/scene_damage_geometry.gd` skips its tint copy, while the
+      `waterfall_sheet` path in `scripts/scenery_motion.gd` and the typed reads in
+      `scripts/fire_presentation.gd` and `scripts/mine_presentation.gd` fail. Bind or
+      keep those surfaces out of this path before enabling it. The request's "both
+      quality modes" has no port or source counterpart; Compatibility is the only
+      renderer. `tests/cel_vertex_colors.tscn` needs a rendered session and passes
+      source rasters from `tools/cel_vertex_color_capture.mjs`, not cel shading (O3).
+      Negative lit albedo stays unrepresentable because the renderer's decode has no
+      real inverse below zero; Berlin autumn and spring have no negative colours.
+    - Cel metadata needs no code change: all 232,025 `berlin_1_autumn` declarations
+      survive native reload. `assets/worlds/berlin_1_autumn.res` predates its
+      recapture, so its `tests/worlds.tscn` run also fails vertices and winding;
+      acceptance follows SN8 regeneration.
+    - "original sign emission" stays open for bundles with active glow; Berlin autumn
+      and spring have none, and the importer rejects any that appears.
 
 Remaining inbound requests follow their files: `shaders/` and shared numeric/font
 adapters go to B, simulation and unit contracts to C, session and snapshot
 contracts to D, and `scripts/main.gd` or `project.godot` contracts to E.
+
+Accepted contracts awaiting their consumers:
+
+- **Sonnet view:** `SourceNumeric.hypot(x, y)` matches Chromium 151 `Math.hypot` bits
+  (`tests/source_numeric.tscn`, corpus from `tools/source_numeric_capture.mjs`); bind it
+  in `ViewLockState.advance` and `MinimapVision.shadows`. Browser `Math.sin`/`cos` stays
+  open: Chromium and Node disagree, so a native binding needs Chromium's own algorithm.
+- **Sonnet presentation:** a replica's `state_received` fires only for an accepted snapshot; rejected
+  packets reach `Session.snapshot_heard`. `control_status.unbalanced` is published.
+- **Sonnet presentation:** `command.move_mag` carries the stick's double magnitude for `InputRules.moving`.
+  Relay activation reaches `CombatEffects.spark` from `scripts/main.gd`.
+- **Sonnet SN4/model lane — civilian surface materials:** `MeshInstance3D` releases a surface override
+  before its render instance, so `scripts/civilian_body_builder.gd::_part` keeps each one
+  alive in mesh metadata; metadata on the part root is not enough. The user directed this
+  one line past the SN4 lease; keep it when SN4 publishes that file.
+- **Sonnet view — feed expiry:** the user directed `scripts/battle_feed.gd` to connect
+  each row's lifetime timer to `row.queue_free`. A lambda capturing `row` reports a
+  freed capture after `clear()`; keep the bound method when the view lane edits it.
+- `scripts/main.gd` defers the room prebuild until the retired simulation is freed.
+  A native world holds most of the mesh RID budget, and loading the next bundle on
+  worker threads while the previous one was freed logged `unimplemented base type`
+  on instantiate. Two worlds held together without that overlap logged nothing.
+- `tests/run.gd` fails a selected suite whose `run` takes other arguments, so
+  `tests/audio_{move,clip}_suite.gd` stay under `tests/audio_lifecycle.tscn`.
 
 ## Render fidelity
 
@@ -84,6 +160,11 @@ contracts to D, and `scripts/main.gd` or `project.godot` contracts to E.
   explicit null versus undefined, matrix fourth rows and source integer/bool
   coercion. Streaming resolution, virtual pages and demand/eviction lifecycle
   remain unimplemented. Use actual source GPU readback where CPU UV rules differ.
+  Compatibility treats `ALBEDO` as sRGB: `StandardMaterial3D` multiplies albedo,
+  texture and vertex colour in encoded space, decodes with a cubic and presents with
+  a toeless power curve, so unlit byte 16 outputs 11 and bytes up to 7 output 0.
+  Only `shaders/source_vertex_color.gdshader.template` corrects this. Every other
+  source material keeps the error, and lit output keeps the curve's dark toe.
 
 ## Coupled simulation semantics
 
@@ -93,7 +174,7 @@ contracts to D, and `scripts/main.gd` or `project.godot` contracts to E.
   Preserve authority lock throttles,
   confirmed-anchor hysteresis, target-dependent ranges, immutable launch frames,
   FNF continuation, direct/fan/line visibility and intentional blast coverage.
-  Mesh/rig changes are Models handoffs; harmless effects are Sol handoffs.
+  Mesh/rig changes go to lane F; harmless effects are Sonnet presentation handoffs.
 - [ ] **O7 — Active abilities/status:** certify cast channels, squared
   interruption fractions, charges/cooldowns, shield/evasion/suppression/critical/
   elemental order, source defensive sectors, healing, phase/reflect and immunity.
@@ -175,7 +256,7 @@ contracts to D, and `scripts/main.gd` or `project.godot` contracts to E.
   monotonic mode acknowledgement, empty-heavy fallback, recoil/echo/movement
   order, pre-kick launch direction and distinct RNG/resource budgets. Complete
   authoritative heading/camera/muzzle convergence and combined input/cast/
-  purchase timing. Personal/touch/gyro prediction remains a Sol consumer.
+  purchase timing. Personal/touch/gyro prediction remains a Sonnet presentation consumer.
 
 ## Modes and room lifecycle
 
@@ -193,8 +274,8 @@ contracts to D, and `scripts/main.gd` or `project.godot` contracts to E.
   route separation, bot capacity/selection, ready cancellation, source loaded
   barrier and deferred authority population. Verify live ordinary seat/side edits,
   fixed join mode, unseated vision/input restrictions and no implicit actor
-  replacement. Prebuild consumption and progress/error wiring must use Sol's
-  actual resource state rather than starting simulation early.
+  replacement. Prebuild consumption and progress/error wiring must use the Sonnet
+  presentation lane's actual resource state rather than starting simulation early.
   Positive populated-match acceptance still requires complete authored seasonal
   resources. Certify valid prebuild consumption, structure anchors and exactly-once
   population after all seats load; rejection coverage alone cannot establish this.
@@ -243,29 +324,19 @@ contracts to D, and `scripts/main.gd` or `project.godot` contracts to E.
 
 ## Full-build acceptance
 
-- [ ] **O23 — Shared integration:** the headless dummy renderer keeps no MultiMesh
-  buffer, so `--headless` runs report presentation failures that a renderer does
-  not. Under Compatibility/llvmpipe (`xvfb-run`, `--rendering-driver opengl3`) the
-  wildlife, wildlife-density, petal, aquatic, climb and view-occlusion suites have
-  zero failures. Run the root suite on a renderer before reading those counts.
-  On that renderer the current root suite has 43 failures. 38 are missing seasonal
-  or campaign worlds (core populated cases, structure, room loading, burst
-  integration, campaign deployment). The rest are the `mobile_suite` stored null
-  (SN2), the `audio_suite` centered-synthesis volume check (Sol), and the
-  `body_suite` budget (SN4). Burst poses also log missing
-  `assets/bodies/steel_s01`-`s12.scn` (Models).
-  Pull exact cross-owner interface requests,
+- [ ] **O23 — Shared integration:** pull exact cross-owner interface requests,
   regenerate required content once, then run the full current fixture suite,
   populated runtime/render/lifecycle checks and both transports. Audit true
   source event/frame order and platform behavior; focused math or storage checks
   cannot substitute for complete match comparison. Resolve new failures before
-  calling a path verified. Current `tests/run.tscn` cannot complete cleanly with
-  failed world setup and owner-specific geometry/audio/scenery differences;
-  engine errors remain failed acceptance even when a component's assertions pass.
-  The current checkout has CRLF/LF byte drift in unchanged pinned fixture
-  consumers. Preserve canonical Git bytes when publishing their plan; each owner
-  must restore its captured source bytes before a clean local whole-suite rerun.
-  Never normalize bytes inside the runtime hash check to hide this mismatch.
+  calling a path verified. Current `tests/run.tscn` completes on a real GL driver with
+  the `berlin_1` worlds; its 180 failures belong to Sonnet presentation audio and mobile preferences,
+  SN4 body streaming and missing campaign terrain, and `burst_suite` stops at its
+  script error. `--smoke` needs SN8's `berlin_swap_5_autumn`. Baseline ENet and WebSocket
+  pass with empty error logs when a room rolls a generated world; until SN8 finishes, a
+  roll of a missing `berlin_swap_1_*` fails the run at preload.
+  Engine errors remain failed acceptance even when a component's assertions pass.
+  Never normalize bytes inside the runtime hash check to hide a consumer mismatch.
   Native fixture consumers must use the generated
   section plan and exact numeric tapes, preserving source order and tolerances.
   Populated core fixtures in `tests/run.gd` and layered blast/bridge/tunnel cases
@@ -276,13 +347,47 @@ contracts to D, and `scripts/main.gd` or `project.godot` contracts to E.
   A case that aborts before freeing its match leaks that world into later cases.
   Campaign deployment still requires authored chapter terrain. Pull failures
   reported by SN9; presentation failures cannot certify populated traversal or
-  field interactions.
+  field interactions. CI's `tools/export_web.ps1` `fixtures` step runs
+  `tests/run.tscn` on `opengl3_angle`; the headless dummy renderer drops
+  MultiMesh and texture data. At `234abb7c`, both Windows ANGLE and Linux
+  `xvfb-run` + `opengl3` reported 153 `audio_suite` failures (83 synthesis stem
+  provenance, 14 native PCM bytes, 44 gain envelopes, 4 music). Those still
+  need an owner. On llvmpipe, `texture_suite`'s 7 cel float-bit checks fail
+  because unorm8 sampling is 1 ULP off there; they need ANGLE or a hardware GL
+  driver. The `tests/body*_suite.gd` consumer hashes in `data/fixtures.json`
+  await the SN4 refresh (`145461ac`).
 - [ ] **O24 — Delivery:** certify native exports, mobile sensors/safe areas,
   Compatibility rendering, memory/performance, threaded audio on Web, browser
   single-player, Pages artifact contents and production native hosting. Complete
   transport loss/bandwidth/MTU and cleanup acceptance on the current build.
   Populated snapshots exceed the 64 KiB WebSocket default; validate the 1 MiB
   session buffer against the largest authored match and the Web client.
+  `scripts/room_snapshot_window.gd` allows two unacknowledged full snapshots per
+  route; skipped ticks hold their event frame, capped at the newest 512 for a
+  stalled client, and `_retain_reliable_window` stops ENet decelerating on client
+  frame time. `-LobbyLatency` models a 170 ms client frame. ENet then delivers
+  about 2 snapshots/s, with retransmits around 10% on loopback and one observed
+  2.8 s transient; network loss, the unthrottled window on real links and the
+  per-tick `_state_for` cost of skipped peers remain unqualified. Reliable
+  `_body_event` and `_sync_lobby` traffic is not windowed, so a client stalled
+  for minutes can still fill the WebSocket buffer. WebSocket `-LobbyLatency`
+  passed 17 consecutive quiet-machine runs (11 instrumented, server probes on a
+  2 s wall cadence) with max latency under 0.4 s, but an earlier batch timed out
+  in 7 of 9 runs: the client collected only 5-9 of 12
+  probes in 40 s, each under 3.7 s. The concurrent machine load is unknown and the
+  failure was not reproduced; capture probe IDs and client frame times if it recurs.
+- [ ] **Open transport handoffs:**
+  - **Opus — `-Projectiles` world-load stall:** world load stalls the main thread for
+    15–55 s, which can exceed the ENet peer timeout (one earlier `heavy=false` run,
+    server saw the peer as disconnected). `-Projectiles` pins `--season summer`, so it
+    does not roll missing SN8 bundles. Held-event delivery after the pilot binds has
+    only transport coverage (`-Projectiles`), not a unit case.
+  - **Opus/SN8 — `-Rematch` bundles:** the fixture rolls a season per round and
+    round 2 loads the side-swapped bundle, but only `berlin_1_{spring,summer,autumn}`
+    and `berlin_swap_1_summer` exist, so most rolls fail on a missing bundle.
+    Forced summer passes 10 consecutive runs on both transports with empty errors.
+    Acceptance follows SN8 regeneration: unforced runs with empty client and server
+    errors.
 
 Baseline commands from the repository root:
 
@@ -292,6 +397,7 @@ godot --headless --path . -- --smoke
 ./tools/test_network.ps1 -Godot C:/path/to/godot_console.exe
 ./tools/test_network.ps1 -Godot C:/path/to/godot_console.exe -RecoveryQueue
 ./tools/test_network.ps1 -Godot C:/path/to/godot_console.exe -SnapshotEvents
+./tools/test_network.ps1 -Godot C:/path/to/godot_console.exe -LobbyLatency
 ```
 
 Select relevant existing case switches in `tools/test_network.ps1` one per run

@@ -8,8 +8,15 @@ func remember(rows: Array) -> void:
 		if row.kind != "bunker":
 			continue
 		var point: Vector3 = row.position
-		var key := "%d,%d" % [int(floorf(point.x + .5)), int(floorf(point.z + .5))]
-		bunkers[key] = {"point": Vector2(point.x, point.z), "side": row.side}
+		remember_coordinates(float(point.x), float(point.z), row.side)
+
+func remember_coordinates(x: float, z: float, side: String) -> void:
+	var key := "%d,%d" % [_round_coordinate(x), _round_coordinate(z)]
+	bunkers[key] = {"point": Vector2(x, z), "x": x, "z": z, "side": side}
+
+static func _round_coordinate(value: float) -> int:
+	var whole := floorf(value)
+	return int(whole + 1.0) if value - whole >= 0.5 else int(whole)
 
 static func commands(rows: Array, viewer: String, known: Array, own: Variant, yaw: float) -> Array:
 	var rules: Dictionary = Content.balance.minimap.markers

@@ -234,15 +234,17 @@ static func physics(h: Node) -> void:
 	if not h._require_prepared_match(sim, "Structure bridge physics"):
 		return
 	sim.set_physics_process(false)
+	# Source fixtures assume flat ground at y=0; keep every height relative to the authored terrain.
+	var base := sim.world.ground_height(0, 0)
 	var owner: BattleUnit = sim.pilots[901]
 	var target: BattleUnit = sim.pilots[902]
-	owner.position = Vector3(0, 0.1, 20)
-	target.position = Vector3(0, 10.1, 0)
-	var deck := {"x1": -40.0, "z1": 0.0, "y1": 10.0, "x2": 40.0, "z2": 0.0, "y2": 10.0, "hw": 8.0}
+	owner.position = Vector3(0, base + 0.1, 20)
+	target.position = Vector3(0, base + 10.1, 0)
+	var deck := {"x1": -40.0, "z1": 0.0, "y1": base + 10, "x2": 40.0, "z2": 0.0, "y2": base + 10, "hw": 8.0}
 	sim.world.layers.configure([[-40.0, 0.0, 40.0, 0.0, 8.0, 1, 0]], [deck])
 	var platform := StaticBody3D.new()
 	platform.collision_layer = 1 | 16
-	platform.position = Vector3(0, 9.5, 0)
+	platform.position = Vector3(0, base + 9.5, 0)
 	var collision := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
 	shape.size = Vector3(80, 1, 16)
@@ -255,6 +257,7 @@ static func physics(h: Node) -> void:
 	h._check(absf(sim._missile_target_altitude(target) - 0.1) < 0.001, "Bridge height reference remains the standing deck")
 	target.shield = 0
 	var health := target.hp
+	# Relative blast impacts stay in the source height-above-surface frame.
 	sim.blast(owner, {"dmg": 20.0, "r": 30.0}, Vector3(0, 1, 0), false, true, 0)
 	h._near(target.hp, health, "Ground blast directly below the same bridge cannot cross its layer")
 	sim.blast(owner, {"dmg": 20.0, "r": 30.0}, Vector3(0, 1, 12), false, true, 0)
@@ -263,14 +266,14 @@ static func physics(h: Node) -> void:
 	sim.blast(owner, {"dmg": 20.0, "r": 30.0}, Vector3(0, 1, 0), false, true, -1)
 	h._check(target.hp < health, "Absent impact level deliberately bypasses structural separation")
 	target.hp = health
-	var tower := sim.spawn({"kind": "tower", "side": "SWARM", "lane": 0, "position": Vector3(0, 10, 0)})
+	var tower := sim.spawn({"kind": "tower", "side": "SWARM", "lane": 0, "position": Vector3(0, base + 10, 0)})
 	tower.shield = 0
 	var tower_health := tower.hp
 	var def: Dictionary = Content.weapon(owner.character, "heavy").duplicate(true)
 	def.dmg = 20.0
 	def.r = 30.0
 	def.pen = 0.0
-	var round := ProjectileMotion.ballistic(Vector3(4, 20, 0), Vector3(0, -200, 0), 100)
+	var round := ProjectileMotion.ballistic(Vector3(4, base + 20, 0), Vector3(0, -200, 0), 100)
 	round.actor = owner.entity_id
 	round.side = owner.side
 	round.definition = def
@@ -280,7 +283,7 @@ static func physics(h: Node) -> void:
 	h._near(target.hp, health, "Physical bridge impact retains source hero layer isolation")
 	sim.world.layers.configure([])
 	h._check(sim._unit_level(target) == 0 and absf(sim._missile_target_altitude(target) - 10.1) < 0.001, "Rooftop without a matching deck uses terrain height reference")
-	var rooftop_shooter := sim.spawn({"kind": "robot", "side": "STEEL", "character": "t04", "position": Vector3(0, 10.1, 0)})
+	var rooftop_shooter := sim.spawn({"kind": "robot", "side": "STEEL", "character": "t04", "position": Vector3(0, base + 10.1, 0)})
 	sim.fire(rooftop_shooter, "light")
 	h._check(sim.projectiles.size() == 1, "A verified rooftop permits an authority kinetic launch")
 	if sim.projectiles.is_empty():
@@ -307,18 +310,19 @@ static func tunnel_impacts(h: Node) -> void:
 	if not h._require_prepared_match(sim, "Structure tunnel impacts"):
 		return
 	sim.set_physics_process(false)
+	var base := sim.world.ground_height(0, 0)
 	var owner: BattleUnit = sim.pilots[911]
 	var target: BattleUnit = sim.pilots[912]
 	for unit: BattleUnit in sim.units.values():
 		unit.position = Vector3(400, 0, 400)
-	owner.position = Vector3(0, 0.1, 40)
-	target.position = Vector3(0, 0.1, 0)
-	var tunnel := {"x1": -40.0, "z1": 0.0, "fy1": 0.0, "x2": 40.0, "z2": 0.0, "fy2": 0.0, "hw": 8.0, "cy1": 4.0, "cy2": 4.0, "open": false}
+	owner.position = Vector3(0, base + 0.1, 40)
+	target.position = Vector3(0, base + 0.1, 0)
+	var tunnel := {"x1": -40.0, "z1": 0.0, "fy1": base, "x2": 40.0, "z2": 0.0, "fy2": base, "hw": 8.0, "cy1": base + 4, "cy2": base + 4, "open": false}
 	# Native positive Z is the source negative-lateral gallery side (bit 2).
 	sim.world.layers.configure([[-40.0, 0.0, 40.0, 0.0, 8.0, 2, 2]], [], [tunnel])
-	var gallery := sim.spawn({"kind": "soldier", "side": "SWARM", "lane": 0, "position": Vector3(0, 0.1, 12)})
-	var solid := sim.spawn({"kind": "soldier", "side": "SWARM", "lane": 0, "position": Vector3(0, 0.1, -12)})
-	var portal := sim.spawn({"kind": "soldier", "side": "SWARM", "lane": 0, "position": Vector3(50, 0.1, 0)})
+	var gallery := sim.spawn({"kind": "soldier", "side": "SWARM", "lane": 0, "position": Vector3(0, base + 0.1, 12)})
+	var solid := sim.spawn({"kind": "soldier", "side": "SWARM", "lane": 0, "position": Vector3(0, base + 0.1, -12)})
+	var portal := sim.spawn({"kind": "soldier", "side": "SWARM", "lane": 0, "position": Vector3(50, base + 0.1, 0)})
 	for unit in [target, gallery, solid, portal]:
 		unit.hp = 1000
 		unit.shield = 0
@@ -326,12 +330,12 @@ static func tunnel_impacts(h: Node) -> void:
 	await h.get_tree().physics_frame
 	await h.get_tree().physics_frame
 	h._check(sim._unit_level(target) == 2, "Authority classifies a human below a covered ceiling")
-	target.position.y = 4
+	target.position.y = base + 4
 	h._check(sim._unit_level(target) == 0, "Human at the ceiling has exited the tunnel layer")
 	target.is_bot = true
 	h._check(sim._unit_level(target) == 2, "Source bots retain inferred ribbon level without a human report")
 	target.is_bot = false
-	target.position.y = 0.1
+	target.position.y = base + 0.1
 	sim.blast(owner, {"dmg": 20.0, "r": 80.0}, Vector3(0, 1, 0), false, true, 2)
 	h._check(target.hp < 1000 and gallery.hp < 1000, "Same tunnel and open gallery side receive blast")
 	h._near(solid.hp, 1000, "Solid tunnel flank prevents cross-layer blast")
@@ -344,7 +348,7 @@ static func tunnel_impacts(h: Node) -> void:
 	def.r = 30.0
 	def.pen = 0.0
 	def.projectile.arm = {}
-	var round := ProjectileMotion.ballistic(Vector3(4, 2, 0), Vector3(0, -200, 0), 100)
+	var round := ProjectileMotion.ballistic(Vector3(4, base + 2, 0), Vector3(0, -200, 0), 100)
 	round.actor = owner.entity_id
 	round.side = owner.side
 	round.definition = def
@@ -354,6 +358,7 @@ static func tunnel_impacts(h: Node) -> void:
 	h._near(solid.hp, 1000, "Physical lob cannot leak through the solid tunnel side")
 	for unit in [target, gallery, solid]:
 		unit.hp = 1000
+	# Authority missiles keep the source altitude frame.
 	var missile := {"actor": owner.entity_id, "side": owner.side, "target": target.entity_id,
 		"position": Vector3(0, 1, 1), "origin": Vector3(0, 1, 1), "speed": 110.0,
 		"dmg": 20.0, "pen": 0.0, "r": 30.0, "hp": 1.0, "ttl": 5.0, "range": 100.0}
@@ -365,7 +370,7 @@ static func tunnel_impacts(h: Node) -> void:
 		unit.hp = 1000
 	var wall := StaticBody3D.new()
 	wall.collision_layer = 1
-	wall.position = Vector3(0, 1, 0)
+	wall.position = Vector3(0, base + 1, 0)
 	var collision := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
 	shape.size = Vector3(0.1, 2, 2)

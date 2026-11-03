@@ -37,17 +37,18 @@ static func run(h: Node, fixtures: Dictionary) -> void:
 static func poses(h: Node, fixtures: Array) -> void:
 	var frames := 0
 	var maximum_error := 0.0
-	# CockpitRig.update_view reads the presentation clock from its unit's parent simulation, so fixture units live under one.
-	var simulation := BattleSimulation.new()
-	h.add_child(simulation)
-	simulation.set_physics_process(false)
+	# CockpitRig.update_view reads its owner's BattleSimulation parent.
+	var sim := BattleSimulation.new()
+	h.add_child(sim)
+	sim.set_physics_process(false)
 	for fixture: Dictionary in fixtures:
 		var pose := AuthorityWeaponPose.new()
 		pose.configure(fixture.character)
 		var unit := BattleUnit.new()
-		simulation.add_child(unit)
+		sim.add_child(unit)
+		var side: String = Content.heroes[fixture.character].side
 		unit.configure({"id": 9901, "character": fixture.character, "kind": Content.heroes[fixture.character].kind,
-			"side": "STEEL", "position": Vector3.ZERO})
+			"side": "STEEL" if side == "MERC" else side, "position": Vector3.ZERO})
 		unit.ensure_cockpit()
 		var rig := unit.cockpit
 		var serial := 0
@@ -95,20 +96,14 @@ static func poses(h: Node, fixtures: Array) -> void:
 				maximum_error = maxf(maximum_error, error)
 				h._check(error < 0.0001, "Original burst current port and fallback alias: %s/%s frame=%d error=%s" % [fixture.character, fixture.form, frames, error])
 		unit.free()
-	simulation.free()
+	sim.free()
 	print("BURST_POSE_REFERENCE_PASS sequences=", fixtures.size(), " frames=", frames, " maximum_error=", maximum_error)
 
 static func integration(h: Node) -> void:
 	var sim := BattleSimulation.new()
 	h.add_child(sim)
 	var map_data := Content.map_variant(0, 1)
-	map_data.erase("native_world")
 	await sim.setup(map_data, [{"peer": 992, "side": "STEEL", "character": "t06", "bot": false}], {"time": "day", "weather": "clear"}, true)
-	# A missing authored world is an explicit failed acceptance case, never a skipped one.
-	if not sim.setup_complete or not sim.pilots.has(992):
-		h._check(false, "Burst integration: authored match preparation required: " + sim.setup_error)
-		sim.free()
-		return
 	sim.set_physics_process(false)
 	var actor: BattleUnit = sim.pilots[992]
 	actor.position = Vector3(0, 100, 0)

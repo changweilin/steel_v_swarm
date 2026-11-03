@@ -2,68 +2,63 @@ extends RefCounted
 
 const Helper = preload("res://tests/status_suite.gd")
 
-# The geometry section is hundreds of MiB encoded, so it is read one partition at a time instead of through the eager
-# `fixtures` dictionary. The key uses single quotes so the consumer scan does not schedule an eager load of it.
-const GEOMETRY_KEY := 'civilianBodyGeometry'
-
+# The geometry section is larger than the whole-suite budget, so each captured
+# partition is decoded, checked and released before the next one is read.
 static func run(h: Node, _fixtures: Dictionary = {}) -> void:
-	var section: Dictionary = Content.fixture_registry.get("sections", {}).get(GEOMETRY_KEY, {})
+	var section: Dictionary = Content.fixture_registry.get("sections", {}).get("civilianBodyGeometry", {})
 	if section.is_empty():
 		h._check(false, "Regenerate original per-ID civilian geometry and articulated-frame references")
 		return
 	var rows := 0
-	for part_index in section.parts.size():
-		var cases: Variant = Content.read_fixture_part(GEOMETRY_KEY, part_index)
-		if not cases is Array:
-			h._check(false, "Read original civilian geometry partition %d" % part_index)
-			return
-		rows += cases.size()
-		_run_cases(h, cases)
-		cases.clear()
-	h._check(rows == int(section.count), "Every captured civilian geometry case is consumed in section order")
+	for part in section.parts.size():
+		var items: Array = Content.read_fixture_part("civilianBodyGeometry", part)
+		rows += items.size()
+		for item: Dictionary in items:
+			_check_item(h, item)
+		items = []
+	h._check(rows == int(section.count), "Every captured civilian case is consumed in original section order")
 
-static func _run_cases(h: Node, cases: Array) -> void:
-	for item: Dictionary in cases:
-		var unit := BattleUnit.new()
-		h.add_child(unit)
-		unit.configure({"id": int(item.seed), "kind": "civilian", "side": "", "position": Vector3.ZERO,
-			"special": {"role": "civilian", "civil_side": item.side, "profession": int(item.profession)}})
-		if unit.body_presentation == null:
-			h._check(false, "Pack original civilian components")
-			unit.free()
-			continue
-		unit.body.rotation.y = 0
-		for node: Node3D in unit.body.nodes.values():
-			var geometry := ViewOcclusion._geometry(node)
-			if geometry == null:
-				continue
-			for surface in range(geometry.get_surface_count()):
-				var material := ViewOcclusion._material(node as GeometryInstance3D, surface)
-				if material != null and material.has_meta("source_original_material"):
-					material = material.get_meta("source_original_material")
-				if material == null or not material.has_meta("source_cel"):
-					continue
-				var source := SourceCelData.material_source(material)
-				var data := material.get_meta("source_cel_data", null) as SourceCelData
-				h._check(data != null and int(source.program) >= 0 and int(source.program) < data.programs.size(),
-					"Assembled civilian surfaces retain component-local shader programs after discarded part roots are freed")
-				if data != null:
-					h._check(data.samplers.size() == data.sampler_images.size(), "Civilian material bundles retain raw image sampler resources after assembly")
-		unit.body_presentation.pending_snap = false
-		Helper.compare(h, unit.body.profile.appearance, item.appearance, "Original civilian seed/profession appearance is independent of combat RNG")
-		Helper.compare(h, unit.geometry_override, item.dimensions, "Original per-ID civilian silhouette and asymmetric model centre")
-		var previous := Vector3.ZERO
-		var previous_yaw := 0.0
-		for step: Dictionary in item.steps:
-			var point := BodyPose.vector(step.position)
-			unit.body.poses.set_position(unit.body.source_root, point)
-			unit.body.poses.set_axis(unit.body.source_root, "y", step.yaw)
-			unit.body.step_combat(unit.body_presentation.entity, step.now, step.delta)
-			unit.body.step_locomotion(unit.body_presentation.entity, step.delta, step.now, previous, previous_yaw)
-			_compare_meshes(h, unit.body, step.meshes)
-			previous = point
-			previous_yaw = step.yaw
+static func _check_item(h: Node, item: Dictionary) -> void:
+	var unit := BattleUnit.new()
+	h.add_child(unit)
+	unit.configure({"id": int(item.seed), "kind": "civilian", "side": "", "position": Vector3.ZERO,
+		"special": {"role": "civilian", "civil_side": item.side, "profession": int(item.profession)}})
+	if unit.body_presentation == null:
+		h._check(false, "Pack original civilian components")
 		unit.free()
+		return
+	unit.body.rotation.y = 0
+	for node: Node3D in unit.body.nodes.values():
+		var geometry := ViewOcclusion._geometry(node)
+		if geometry == null:
+			continue
+		for surface in range(geometry.get_surface_count()):
+			var material := ViewOcclusion._material(node as GeometryInstance3D, surface)
+			if material != null and material.has_meta("source_original_material"):
+				material = material.get_meta("source_original_material")
+			if material == null or not material.has_meta("source_cel"):
+				continue
+			var source := SourceCelData.material_source(material)
+			var data := material.get_meta("source_cel_data", null) as SourceCelData
+			h._check(data != null and int(source.program) >= 0 and int(source.program) < data.programs.size(),
+				"Assembled civilian surfaces retain component-local shader programs after discarded part roots are freed")
+			if data != null:
+				h._check(data.samplers.size() == data.sampler_images.size(), "Civilian material bundles retain raw image sampler resources after assembly")
+	unit.body_presentation.pending_snap = false
+	Helper.compare(h, unit.body.profile.appearance, item.appearance, "Original civilian seed/profession appearance is independent of combat RNG")
+	Helper.compare(h, unit.geometry_override, item.dimensions, "Original per-ID civilian silhouette and asymmetric model centre")
+	var previous := Vector3.ZERO
+	var previous_yaw := 0.0
+	for step: Dictionary in item.steps:
+		var point := BodyPose.vector(step.position)
+		unit.body.poses.set_position(unit.body.source_root, point)
+		unit.body.poses.set_axis(unit.body.source_root, "y", step.yaw)
+		unit.body.step_combat(unit.body_presentation.entity, step.now, step.delta)
+		unit.body.step_locomotion(unit.body_presentation.entity, step.delta, step.now, previous, previous_yaw)
+		_compare_meshes(h, unit.body, step.meshes)
+		previous = point
+		previous_yaw = step.yaw
+	unit.free()
 
 static func _compare_meshes(h: Node, body: BodyRig, expected: Array) -> void:
 	var meshes: Array = body.source_root.find_children("*", "MeshInstance3D", true, false).filter(func(mesh): return not mesh.get_meta("isOutline", false))

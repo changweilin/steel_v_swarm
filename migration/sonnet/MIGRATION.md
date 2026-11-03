@@ -14,17 +14,14 @@ Isolate one suite with
 
 ## Presentation and lifecycle
 
-- [ ] **SN1 — MultiMesh copies:** add one helper in `scripts/multimesh_copy.gd`
-  and use it for the `MultiMesh.duplicate()` calls in the scenery, climb, aquatic,
-  wildlife and petal presentations and `scripts/view_occlusion.gd`. Allocate a
-  fresh `MultiMesh`, then copy `transform_format`, `use_colors`, `use_custom_data`,
-  `mesh`, `instance_count`, `visible_instance_count`, `custom_aabb` and `buffer` in
-  that order: Godot 4.7.2 `duplicate()` calls `set_buffer` before `instance_count`.
-  Preserve source instance transforms and duplicate before camp clearance. Also
-  match `expandByObject` descendant bounds, nine TPS body samples and instanced fade
-  restoration. Acceptance: `tests/structure_suite.gd` rotated, mirrored, zero-scale,
-  overlap and repeated-clearance cases, `tests/view_occlusion_suite.gd`, and the
-  scenery, climb-arrow, aquatic, wildlife and petal `_retirement.tscn` scenes.
+- [ ] **SN1 — MultiMesh copies:** `MultiMeshCopy.duplicate_multimesh` has landed in
+  the scenery, climb, aquatic, wildlife and petal presentations and
+  `scripts/view_occlusion.gd`. The headless dummy renderer keeps no MultiMesh
+  buffer, so instance assertions must run on a renderer: under
+  Compatibility/llvmpipe, `view_occlusion_suite` has 0 failures and
+  `structure_suite` fails only its three missing `berlin_1_summer` cases. Remaining:
+  the scenery binding/host retirement scenes need `data/worlds/berlin_1_autumn.json`
+  readable (`ERR_CANT_OPEN` here), and the structure layered cases need SN8's world.
 - [ ] **SN2 — Preferences:** the `low_power` and INI-header guards have landed,
   and `tests/fog_geometry.tscn`/`tests/fog_retirement.tscn` pass without a fog change.
   `tests/mobile_suite.gd` still fails both "lookSens source scalar" checks for

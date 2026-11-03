@@ -42,12 +42,71 @@ static func run(h: Node, fixtures: Dictionary) -> void:
 	if not Content.balance.has("bodies") or not Content.balance.has("bodyRules"):
 		h._check(false, "Regenerate original body rig/shield metadata")
 		return
-	for key: String in ["bodyGeometry", "bodyWeapons", "bodyShield"]:
-		if not fixtures.has(key):
+	# These sections are consumed one partition at a time so only one captured partition is decoded at once.
+	# Their keys use single quotes so the consumer scan does not schedule an eager load of the whole section.
+	var sections: Dictionary = Content.fixture_registry.get("sections", {})
+	for key: String in [GEOMETRY_KEY, WEAPONS_KEY, SHIELD_KEY]:
+		if not sections.has(key):
 			h._check(false, "Regenerate original body oracle: " + key)
 			return
 	var baseline: Dictionary = {}
-	for item: Dictionary in fixtures.bodyGeometry:
+	_each_part(h, GEOMETRY_KEY, func(rows: Array) -> void: _geometry(h, rows, baseline))
+	_each_part(h, WEAPONS_KEY, func(rows: Array) -> void: _weapons(h, rows, baseline))
+	_each_part(h, SHIELD_KEY, func(rows: Array) -> void: _shield(h, rows))
+	MorphTests.run(h, fixtures, baseline)
+	LocomotionTests.run(h, fixtures)
+	GaitTests.run(h, fixtures)
+	CombatTests.run(h, fixtures)
+	AimTests.run(h, fixtures)
+	AnatomicalTests.run(h, fixtures, baseline)
+	FrameTests.run(h, fixtures, baseline)
+	PresentationTests.run(h, fixtures, baseline)
+	AuthorityTests.run(h, fixtures, baseline)
+	NpcTests.run(h, fixtures, baseline)
+	CloneTests.run(h, fixtures, baseline)
+	CarrierTests.run(h, fixtures)
+	CivilianTests.run(h, fixtures)
+	BodyViewTests.run(h, fixtures)
+	NpcShotTests.run(h, fixtures)
+	HeroShotTests.run(h, fixtures)
+	RemoteShotTests.run(h, fixtures)
+	SpriteTests.run(h, fixtures)
+	VictimTests.run(h, fixtures)
+	FirstPersonShieldTests.run(h, fixtures)
+	HurtTests.run(h, fixtures)
+	BloodTests.run(h, fixtures)
+	SplatPaintTests.run(h, fixtures)
+	PresentationFrameTests.run(h, fixtures)
+	DestructionTests.run(h, fixtures)
+	DeathSequenceTests.run(h, fixtures)
+	BlastFeedbackTests.run(h, fixtures)
+	SceneDamageTests.run(h, fixtures)
+	MobileDamageTests.run(h, fixtures)
+	DamageFxTests.run(h, fixtures)
+	MissilePresentationTests.run(h, fixtures)
+	MissileViewRayTests.run(h, fixtures)
+	BodyRemovalTests.run(h, fixtures)
+	DissolveTests.run(h, fixtures)
+
+const GEOMETRY_KEY := 'bodyGeometry'
+const WEAPONS_KEY := 'bodyWeapons'
+const SHIELD_KEY := 'bodyShield'
+
+static func _each_part(h: Node, key: String, consume: Callable) -> void:
+	var section: Dictionary = Content.fixture_registry.sections[key]
+	var total := 0
+	for index in section.parts.size():
+		var rows: Variant = Content.read_fixture_part(key, index)
+		if not rows is Array:
+			h._check(false, "Read original body fixture partition %d: %s" % [index, key])
+			return
+		total += rows.size()
+		consume.call(rows)
+		rows.clear()
+	h._check(total == int(section.count), "Every captured case remains in original section order: " + key)
+
+static func _geometry(h: Node, rows: Array, baseline: Dictionary) -> void:
+	for item: Dictionary in rows:
 		baseline[item.key] = initial_states(item.nodes)
 		var rig := BodyRig.new()
 		h.add_child(rig)
@@ -156,7 +215,9 @@ static func run(h: Node, fixtures: Dictionary) -> void:
 				h._check(not is_same(first.multimesh, second.multimesh), "Track instance transforms are private to each body")
 		other.free()
 		rig.free()
-	for item: Dictionary in fixtures.bodyWeapons:
+
+static func _weapons(h: Node, rows: Array, baseline: Dictionary) -> void:
+	for item: Dictionary in rows:
 		var rig := BodyRig.new()
 		h.add_child(rig)
 		if not rig.configure(item.key):
@@ -214,7 +275,9 @@ static func run(h: Node, fixtures: Dictionary) -> void:
 				var parent: int = node.get_parent().get_meta("source_id", -1)
 				h._check(parent == int(spec.parent), "Original combat joint/flame reparent keeps its local pose")
 		rig.free()
-	for item: Dictionary in fixtures.bodyShield:
+
+static func _shield(h: Node, rows: Array) -> void:
+	for item: Dictionary in rows:
 		var material := ShaderMaterial.new()
 		material.shader = preload("res://shaders/reference_shield.gdshader")
 		var strength := ShieldPresentation.hit_strength(item.drop)
@@ -225,40 +288,6 @@ static func run(h: Node, fixtures: Dictionary) -> void:
 			ShieldPresentation.step(material, step.delta)
 			h._near(float(material.get_shader_parameter("uTime")), step.time, "Original shield shader clock")
 			h._near(float(material.get_shader_parameter("uFlash")), step.flash, "Original shield flash linear decay and floor")
-	MorphTests.run(h, fixtures, baseline)
-	LocomotionTests.run(h, fixtures)
-	GaitTests.run(h, fixtures)
-	CombatTests.run(h, fixtures)
-	AimTests.run(h, fixtures)
-	AnatomicalTests.run(h, fixtures, baseline)
-	FrameTests.run(h, fixtures, baseline)
-	PresentationTests.run(h, fixtures, baseline)
-	AuthorityTests.run(h, fixtures, baseline)
-	NpcTests.run(h, fixtures, baseline)
-	CloneTests.run(h, fixtures, baseline)
-	CarrierTests.run(h, fixtures)
-	CivilianTests.run(h, fixtures)
-	BodyViewTests.run(h, fixtures)
-	NpcShotTests.run(h, fixtures)
-	HeroShotTests.run(h, fixtures)
-	RemoteShotTests.run(h, fixtures)
-	SpriteTests.run(h, fixtures)
-	VictimTests.run(h, fixtures)
-	FirstPersonShieldTests.run(h, fixtures)
-	HurtTests.run(h, fixtures)
-	BloodTests.run(h, fixtures)
-	SplatPaintTests.run(h, fixtures)
-	PresentationFrameTests.run(h, fixtures)
-	DestructionTests.run(h, fixtures)
-	DeathSequenceTests.run(h, fixtures)
-	BlastFeedbackTests.run(h, fixtures)
-	SceneDamageTests.run(h, fixtures)
-	MobileDamageTests.run(h, fixtures)
-	DamageFxTests.run(h, fixtures)
-	MissilePresentationTests.run(h, fixtures)
-	MissileViewRayTests.run(h, fixtures)
-	BodyRemovalTests.run(h, fixtures)
-	DissolveTests.run(h, fixtures)
 
 static func initial_states(nodes: Array) -> Dictionary:
 	var result: Dictionary = {}

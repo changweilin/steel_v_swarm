@@ -48,15 +48,16 @@ Isolate one suite with
   `Session.seats.player_for`/`transport_for` in the death, mobile, TPS and view
   scripts. All ten scenes parse cleanly. Acceptance: each passes its transport case
   in SN9; the death pair currently stops at the missing seasonal world.
-- [ ] **SN4 — Model suites:** `tests/body_suite.gd` and
-  `tests/civilian_body_suite.gd` consume cases incrementally through
-  `Content.read_fixture_part(key, index)`, retaining every row, nested frame
-  sequence, rig reset and cross-frame state. Do not raise the encoded-byte budget.
-  `tests/burst_suite.gd` parents cockpit fixture units under a `BattleSimulation`
-  before `CockpitRig.update_view`, retaining all frames and serial/kick/muzzle
-  assertions. `scripts/civilian_body_builder.gd` unsets `owner` before reparenting
-  template nodes in `configure`. Acceptance: all three suites with bounded memory,
-  and `tests/snapshot_suite.gd` without inconsistent-owner warnings.
+- [ ] **SN4 — Model suites:** `burst_suite` (25,103 assertions; one explicit failure
+  while its integration case lacks an authored world), `civilian_body_suite`
+  (8,669,007 assertions, peak RSS ~1.5 GB) and `snapshot_suite` (no inconsistent-owner
+  warnings) pass. `body_suite` consumes `bodyGeometry`, `bodyWeapons` and `bodyShield`
+  per partition, but still exceeds the 256 MiB budget: its nested
+  `tests/body_{aim,combat,gait}_suite.gd` read `fixtures.bodyGeometry` (~237 MiB).
+  Request (Models suites, outside this lease): read it through
+  `Content.read_fixture_part` with a single-quoted key, then refresh consumers and
+  rerun `body_suite` at the default budget. Burst poses log missing
+  `assets/bodies/steel_s01`-`s12.scn` (Models generated content).
 - [ ] **SN7 — Shared fixture corrections:** the section arrays, dialogue clock,
   death-sequence cycle and exact-byte raster comparator have landed. The
   `tools/fixture_json.mjs::writeSourceFile` unique-staging fix is held for O25

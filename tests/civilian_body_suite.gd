@@ -2,11 +2,28 @@ extends RefCounted
 
 const Helper = preload("res://tests/status_suite.gd")
 
-static func run(h: Node, fixtures: Dictionary) -> void:
-	if not fixtures.has("civilianBodyGeometry"):
+# The geometry section is hundreds of MiB encoded, so it is read one partition at a time instead of through the eager
+# `fixtures` dictionary. The key uses single quotes so the consumer scan does not schedule an eager load of it.
+const GEOMETRY_KEY := 'civilianBodyGeometry'
+
+static func run(h: Node, _fixtures: Dictionary = {}) -> void:
+	var section: Dictionary = Content.fixture_registry.get("sections", {}).get(GEOMETRY_KEY, {})
+	if section.is_empty():
 		h._check(false, "Regenerate original per-ID civilian geometry and articulated-frame references")
 		return
-	for item: Dictionary in fixtures.civilianBodyGeometry:
+	var rows := 0
+	for part_index in section.parts.size():
+		var cases: Variant = Content.read_fixture_part(GEOMETRY_KEY, part_index)
+		if not cases is Array:
+			h._check(false, "Read original civilian geometry partition %d" % part_index)
+			return
+		rows += cases.size()
+		_run_cases(h, cases)
+		cases.clear()
+	h._check(rows == int(section.count), "Every captured civilian geometry case is consumed in section order")
+
+static func _run_cases(h: Node, cases: Array) -> void:
+	for item: Dictionary in cases:
 		var unit := BattleUnit.new()
 		h.add_child(unit)
 		unit.configure({"id": int(item.seed), "kind": "civilian", "side": "", "position": Vector3.ZERO,

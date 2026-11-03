@@ -243,7 +243,12 @@ contracts to D, and `scripts/main.gd` or `project.godot` contracts to E.
 
 ## Full-build acceptance
 
-- [ ] **O23 — Shared integration:** pull exact cross-owner interface requests,
+- [ ] **O23 — Shared integration:** the headless dummy renderer keeps no MultiMesh
+  buffer, so `--headless` runs report presentation failures that a renderer does
+  not. Under Compatibility/llvmpipe (`xvfb-run`, `--rendering-driver opengl3`) the
+  wildlife, wildlife-density, petal, aquatic, climb and view-occlusion suites have
+  zero failures. Run the root suite on a renderer before reading those counts.
+  Pull exact cross-owner interface requests,
   regenerate required content once, then run the full current fixture suite,
   populated runtime/render/lifecycle checks and both transports. Audit true
   source event/frame order and platform behavior; focused math or storage checks

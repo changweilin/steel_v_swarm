@@ -339,11 +339,14 @@ Accepted contracts awaiting their consumers:
   Campaign deployment still requires authored chapter terrain. Pull failures
   reported by SN9; presentation failures cannot certify populated traversal or
   field interactions. CI's `tools/export_web.ps1` `fixtures` step runs
-  `tests/run.tscn` headless. The dummy renderer drops per-instance MultiMesh
-  writes, so `MultiMeshCopy.of` reads an empty buffer and `aquatic_suite` reports
-  42030 failures. Under `xvfb-run -a godot --rendering-driver opengl3` it passes
-  196337 assertions with no errors. Run renderer-dependent suites on a real driver
-  in CI rather than weakening them.
+  `tests/run.tscn` on `opengl3_angle`; the headless dummy renderer drops
+  MultiMesh and texture data. At `234abb7c`, both Windows ANGLE and Linux
+  `xvfb-run` + `opengl3` reported 153 `audio_suite` failures (83 synthesis stem
+  provenance, 14 native PCM bytes, 44 gain envelopes, 4 music). Those still
+  need an owner. On llvmpipe, `texture_suite`'s 7 cel float-bit checks fail
+  because unorm8 sampling is 1 ULP off there; they need ANGLE or a hardware GL
+  driver. The `tests/body*_suite.gd` consumer hashes in `data/fixtures.json`
+  await the SN4 refresh (`145461ac`).
 - [ ] **O24 — Delivery:** certify native exports, mobile sensors/safe areas,
   Compatibility rendering, memory/performance, threaded audio on Web, browser
   single-player, Pages artifact contents and production native hosting. Complete

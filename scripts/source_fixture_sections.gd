@@ -69,16 +69,47 @@ static func load_part(registry: Dictionary, base: String, key: String, index: in
 		if numbers.size() != int(numeric.get("bytes", -1)) or numbers.size() != int(numeric.get("count", -1)) * 8:
 			_fail("Original numeric fixture partition length mismatch: " + numeric_path)
 			return null
-		var cursor := [0]
-		value = _restore_numbers(value, numbers, cursor)
-		if cursor[0] != numbers.size():
-			_fail("Original numeric fixture partition was not fully consumed: " + numeric_path)
+		var restored := restore_numeric_tape(value, numbers)
+		if not restored.ok:
+			_fail(str(restored.error) + ": " + numeric_path)
 			return null
+		value = restored.value
 	if section.kind == "array" and (not value is Array or value.size() != int(part.count)):
 		_fail("Original fixture partition row count mismatch: " + path)
 		return null
 	return value
 
+## Restores every numeric leaf of a captured JSON value tree from its native
+## float64 little-endian tape, in the producer's depth-first order. Strings,
+## booleans and nulls keep their parsed values and the tree keeps its shape.
+## Callers validate the storage paths and hashes of both inputs first.
+## Returns {"ok": bool, "value": Variant, "error": String}; on failure the
+## captured tree is returned unchanged and no partial restoration is exposed.
+static func restore_numeric_tape(value: Variant, numbers: PackedByteArray) -> Dictionary:
+	if numbers.size() % 8 != 0:
+		return {"ok": false, "value": value, "error": "Original numeric tape is not a whole number of float64 words"}
+	var count := _count_numbers(value)
+	if count * 8 > numbers.size():
+		return {"ok": false, "value": value, "error": "Original numeric tape ended before its value tree"}
+	if count * 8 < numbers.size():
+		return {"ok": false, "value": value, "error": "Original numeric tape was not fully consumed"}
+	var cursor := [0]
+	var restored: Variant = _restore_numbers(value.duplicate(true) if value is Dictionary or value is Array else value, numbers, cursor)
+	return {"ok": true, "value": restored, "error": ""}
+
+static func _count_numbers(value: Variant) -> int:
+	var count := 0
+	if value is Dictionary:
+		for item: Variant in value.values():
+			count += _count_numbers(item)
+	elif value is Array:
+		for item: Variant in value:
+			count += _count_numbers(item)
+	elif value is float or value is int:
+		count = 1
+	return count
+
+# The word count is validated before restoration, so every leaf has a word.
 static func _restore_numbers(value: Variant, numbers: PackedByteArray, cursor: Array) -> Variant:
 	if value is Dictionary:
 		for key: Variant in value:
@@ -87,9 +118,6 @@ static func _restore_numbers(value: Variant, numbers: PackedByteArray, cursor: A
 		for index in value.size():
 			value[index] = _restore_numbers(value[index], numbers, cursor)
 	elif value is float or value is int:
-		if int(cursor[0]) + 8 > numbers.size():
-			_fail("Original numeric fixture partition ended before its value tree")
-			return value
 		value = numbers.decode_double(int(cursor[0]))
 		cursor[0] += 8
 	return value

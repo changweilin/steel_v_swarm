@@ -36,9 +36,12 @@ keep the full requests; find them by searching their backlogs for `**Opus`.
 - [ ] **O26 — World contracts:** complete before SN8.
   - **O26A (lane A):** "layered-deck reference provenance", including signed-zero
     preservation in `tools/world_references.mjs`.
-  - **O26B (lane B):** "exact native source JSON numbers", "float vertex colors" and
-    "cel resource metadata". Add "original sign emission" if the selected baseline
-    bundle has active glow.
+  - **O26B (lane B):** "float vertex colors" and "cel resource metadata". Add
+    "original sign emission" if the selected baseline bundle has active glow.
+    "Exact native source JSON numbers" is exposed as
+    `SourceFixtureSections.restore_numeric_tape` (guarded by
+    `tests/source_numeric_tape.tscn`); its acceptance still needs Sol's binding
+    and a `tests/source_json.tscn` run against the original Chromium capture.
 - [ ] **O27 — Story media (lane A):** all 70 PNG-named `assets/story/` files hold
   JPEG bytes. Complete Terra's "story image encoding", then publish
   `assets/logo_flat.png` and `assets/loading/`. The offline copier preserves

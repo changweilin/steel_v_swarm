@@ -18,6 +18,15 @@ func _ready() -> void:
 	super._ready()
 	network_test = false
 
+func _bind_camera(pilot: BattleUnit) -> void:
+	super._bind_camera(pilot)
+	# Record the emission itself; a one-frame shell can collide before any physics sample sees it.
+	if pilot.cockpit != null and not pilot.cockpit.echo_fired.is_connected(_on_echo_fired):
+		pilot.cockpit.echo_fired.connect(_on_echo_fired)
+
+func _on_echo_fired(_definition: Dictionary, _origin: Vector3) -> void:
+	echo_seen = true
+
 func _physics_process(delta: float) -> void:
 	if Session.launch_announced:
 		elapsed += delta
@@ -62,7 +71,6 @@ func _physics_process(delta: float) -> void:
 	if simulation == null or simulation.world == null or simulation.world.projectile_visuals == null:
 		return
 	var presentation := simulation.world.projectile_visuals
-	echo_seen = echo_seen or not presentation.shells.is_empty()
 	if light_seen and heavy_seen and moving_seen and echo_seen and clearing_seen:
 		print("NETWORK_PASS peer=", Session.player_id(), " units=", simulation.units.size())
 		print("NETWORK_PROJECTILE_VISUAL_PASS light=true heavy=true source_geometry=true moving_pose=true echo=true clear=true private=true")

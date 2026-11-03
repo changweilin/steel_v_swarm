@@ -88,6 +88,9 @@ var selected_slot := "light"
 var aiming := false
 var aim_request := 0
 var aim_state_clock := -INF
+# Reliable `weapon_fire` events can overtake the first snapshot that creates the local pilot.
+const PENDING_FIRE_LIMIT := 16
+var pending_fire_events: Array[Dictionary] = []
 var wheel_at := -100.0
 var released_controls: Dictionary = {}
 var yaw := 0.0
@@ -228,6 +231,8 @@ func _ready() -> void:
 		ui.visible = false
 		var server_port := int(_argument("--port", "8620"))
 		var settings := {"map_index": int(_argument("--map", "0")), "team_size": int(_argument("--team-size", "1")), "super": arguments.has("--super"), "ctrl": Controls.pref, "env": {"weather": "clear", "time": "day"}}
+		if arguments.has("--season"):
+			settings.env.season = _argument("--season", "summer")
 		if arguments.has("--campaign"):
 			var chapter := _argument("--campaign", "")
 			var faction := _argument("--side", "STEEL")
@@ -1008,6 +1013,7 @@ func _begin_battle(settings: Dictionary, players: Array) -> void:
 	if audio != null:
 		audio.set_scene("battle")
 	body_frame = 0
+	pending_fire_events.clear()
 	_refresh_creep_shop()
 	Session.simulation = simulation
 	simulation.view_snapshot_ready.connect(_prepare_death_snapshot)
@@ -1749,7 +1755,12 @@ func _body_event_feedback(event: Dictionary) -> void:
 	if simulation == null or event.get("type") != "weapon_fire" or not event.has("serial"):
 		return
 	var pilot: BattleUnit = simulation.pilots.get(Session.player_id())
-	if pilot == null or int(event.actor) != pilot.entity_id:
+	if pilot == null:
+		if pending_fire_events.size() >= PENDING_FIRE_LIMIT:
+			pending_fire_events.pop_front()
+		pending_fire_events.append(event)
+		return
+	if int(event.actor) != pilot.entity_id:
 		return
 	_bind_camera(pilot)
 	pilot.cockpit.fire_feedback(event)
@@ -1935,6 +1946,10 @@ func _receive_state(state: Dictionary) -> void:
 		push_error("Missing owned control-state publication; matching native client and authority content are required")
 		return
 	if pilot != null:
+		var held := pending_fire_events.duplicate()
+		pending_fire_events.clear()
+		for event: Dictionary in held:
+			_body_event_feedback(event)
 		var defense_frame := _defense_frame(pilot)
 		defense_frame.frozen = float(published_controls.get("freezeLeft", 0)) > 0
 		local_defense.observe_snapshot(defense_frame, Time.get_ticks_usec() / 1000000.0)

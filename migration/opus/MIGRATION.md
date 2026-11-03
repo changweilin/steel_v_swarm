@@ -377,16 +377,11 @@ Accepted contracts awaiting their consumers:
   probes in 40 s, each under 3.7 s. The concurrent machine load is unknown and the
   failure was not reproduced; capture probe IDs and client frame times if it recurs.
 - [ ] **Open transport handoffs:**
-  - **Opus/Sonnet presentation — `-Projectiles` echo:** with client-anchored stages, ENet failed 1
-    of 16 runs with `echo=false` and everything else true; the failed run logged
-    no event trace, so the cause is unproven. In 10 traced runs the light
-    `weapon_fire` arrived in serial 0 after client launch, so it was never held or
-    overwritten in `pending_snapshot`. A 300 ms client frame does not reproduce it
-    because `view.frameCap` bounds shell steps. The echo is one shell sampled only
-    in `_physics_process`, so a same-frame collision on a rolled world would hide
-    it. Acceptance: record `echo_fired` instead of sampling `shells`, and pass 20
-    consecutive ENet runs, or capture a failing trace that shows an Opus delivery
-    defect.
+  - **Opus — `-Projectiles` world-load stall:** world load stalls the main thread for
+    15–55 s, which can exceed the ENet peer timeout (one earlier `heavy=false` run,
+    server saw the peer as disconnected). `-Projectiles` pins `--season summer`, so it
+    does not roll missing SN8 bundles. Held-event delivery after the pilot binds has
+    only transport coverage (`-Projectiles`), not a unit case.
   - **Opus/SN8 — `-Rematch` bundles:** the fixture rolls a season per round and
     round 2 loads the side-swapped bundle, but only `berlin_1_{spring,summer,autumn}`
     and `berlin_swap_1_summer` exist, so most rolls fail on a missing bundle.

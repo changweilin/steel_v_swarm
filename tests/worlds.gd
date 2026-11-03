@@ -114,9 +114,20 @@ func _run() -> void:
 		await get_tree().physics_frame
 		var map_id: String = required[path].map
 		var team_size := str(int(required[path].teamSize))
-		var base_id := map_id.trim_suffix("_swap")
-		var map_entry: Dictionary = (Content.maps + Content.campaign.get("maps", [])).filter(func(entry): return entry.id == base_id)[0]
-		var variants: Dictionary = map_entry.swapped_variants if map_id.ends_with("_swap") else map_entry.variants
+		var all_maps: Array = Content.maps + Content.campaign.get("maps", [])
+		var variants: Dictionary
+		var exact: Array = all_maps.filter(func(entry): return entry.id == map_id)
+		if not exact.is_empty():
+			# Campaign swap maps are standalone entries with their own variants.
+			variants = exact[0].variants
+		else:
+			var base_id := map_id.trim_suffix("_swap")
+			var base: Array = all_maps.filter(func(entry): return entry.id == base_id and entry.has("swapped_variants"))
+			_check(map_id.ends_with("_swap") and not base.is_empty(), file + ": swapped world resolves to a source map entry")
+			if base.is_empty():
+				scene.queue_free()
+				continue
+			variants = base[0].swapped_variants
 		var variant: Dictionary = variants[team_size]
 		for structure in variant.structures:
 			_check(_height(structure.position[0], structure.position[2], data.ceiling + 100, data.min_height - 100, 8) != null, file + ": structure has a verified standing surface")

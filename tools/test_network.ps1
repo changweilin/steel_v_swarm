@@ -35,7 +35,7 @@ try {
         if ($Cockpits) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/cockpit_network.tscn', '--', '--server', '--port', $listenPort) }
         if ($Cameras) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/camera_network.tscn', '--', '--server', '--port', $listenPort) }
         if ($Bursts) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/burst_network.tscn', '--', '--server', '--port', $listenPort) }
-        if ($Projectiles) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/projectile_visual_network.tscn', '--', '--server', '--port', $listenPort) }
+        if ($Projectiles) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/projectile_visual_network.tscn', '--', '--server', '--port', $listenPort, '--season', 'summer') }
         if ($Aiming) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/aiming_network.tscn', '--', '--server', '--port', $listenPort) }
         if ($MissileDefenses) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/missile_defense_network.tscn', '--', '--server', '--port', $listenPort) }
         if ($Bots) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/bot_network.tscn', '--', '--server', '--port', $listenPort) }
@@ -165,7 +165,7 @@ try {
             $null = $observer.Handle
             $processes += $observer
         }
-        if (-not $client.WaitForExit($(if ($Rematch) { 40000 } elseif ($Recovery -or $QuickRestart) { 35000 } else { 60000 }))) { throw "$mode connection test timed out" }
+        if (-not $client.WaitForExit($(if ($Rematch) { 40000 } elseif ($Recovery -or $QuickRestart) { 35000 } elseif ($Projectiles) { 120000 } else { 60000 }))) { throw "$mode connection test timed out" }
         $log = Get-Content -LiteralPath "$projectRoot/tests/$mode-client.log" -Raw
         $errors = Get-Content -LiteralPath "$projectRoot/tests/$mode-client-errors.log" -Raw
         $serverErrors = Get-Content -LiteralPath "$projectRoot/tests/$mode-server-errors.log" -Raw

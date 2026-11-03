@@ -42,120 +42,25 @@ static func run(h: Node, fixtures: Dictionary) -> void:
 	if not Content.balance.has("bodies") or not Content.balance.has("bodyRules"):
 		h._check(false, "Regenerate original body rig/shield metadata")
 		return
-	for key: String in ["bodyGeometry", "bodyWeapons", "bodyShield"]:
+	for key: String in ["bodyWeapons", "bodyShield"]:
 		if not fixtures.has(key):
 			h._check(false, "Regenerate original body oracle: " + key)
 			return
+	var geometry: Dictionary = Content.fixture_registry.get("sections", {}).get("bodyGeometry", {})
+	if geometry.is_empty():
+		h._check(false, "Regenerate original body oracle: bodyGeometry")
+		return
 	var baseline: Dictionary = {}
-	for item: Dictionary in fixtures.bodyGeometry:
-		baseline[item.key] = initial_states(item.nodes)
-		var rig := BodyRig.new()
-		h.add_child(rig)
-		var phase := func(index): return float(item.materials[index].uniforms.uTime) / float(Content.balance.bodyRules.shield.timeWindow)
-		if not rig.configure(item.key, phase):
-			h._check(false, "Pack original body scene: " + item.key)
-			rig.free()
-			continue
-		h._check(rig.nodes.size() == item.nodes.size(), "Original complete body hierarchy including hidden/outline/combat nodes: " + item.key)
-		var source_graph: Dictionary = Content.read_json("res://data/bodies/%s.json" % item.key)
-		h._check(source_graph.has("celPrograms") and source_graph.has("celSamplers"), "Regenerate original cel shader programs and typed sampler data")
-		var cel_data := rig.source_root.get_meta("source_cel_data") as SourceCelData
-		h._check(cel_data != null, "Source material programs use a shared native Resource")
-		if cel_data != null:
-			Helper.compare(h, cel_data.programs, source_graph.get("celPrograms", []), "Original cel shader source and every referenced Three chunk survive packing")
-			Helper.compare(h, cel_data.samplers, source_graph.get("celSamplers", []), "Original cel gradient/field sampler precision survives packing")
-		for spec: Dictionary in item.nodes:
-			var node: Node3D = rig.nodes[int(spec.id)]
-			compare_transform(h, node.transform, ViewTests.frame(spec.matrix), "Original body endpoint local transform")
-			h._check(node.visible == spec.visible and node.get_meta("source_name") == spec.name, "Original body visibility and named rig binding")
-			if spec.has("helper"):
-				Helper.compare(h, node.get_meta("source_helper", {}), spec.helper, "Disabled source rig-preview helpers retain graph identity and explicit unavailable visualization")
-				h._check(not node.visible and not node is GeometryInstance3D, "Disabled source skeleton guides cannot become substitute combat geometry")
-			for flag: String in spec.flags:
-				h._check(node.get_meta(flag) == spec.flags[flag], "Original body outline/ring/occlusion flag")
-			if spec.has("outlineUniforms"):
-				Helper.compare(h, node.get_meta("source_outline_uniforms", {}), spec.outlineUniforms,
-					"Original retained outline nodes preserve world-scale-adjusted vertex expansion uniforms")
-			if spec.has("outlines"):
-				var shells: Array = node.get_meta("source_outline_shells", [])
-				h._check(shells.size() == spec.outlines.size(), "Deferred outline geometry never adds nodes to the authored body rig")
-				for index in range(mini(shells.size(), spec.outlines.size())):
-					Helper.compare(h, shells[index].uniforms, spec.outlines[index].uniforms, "Original deferred outline uniforms")
-					Helper.compare(h, shells[index].matrix, spec.outlines[index].matrix, "Original deferred outline local transform")
-					h._check(shells[index].child_index == spec.outlines[index].childIndex, "Deferred shells retain original child traversal order")
-					h._check(shells[index].same_geometry == spec.outlines[index].sameGeometry,
-						"Deferred shells preserve the source smooth-normal geometry choice")
-					h._check(shells[index].geometry is ArrayMesh and int(shells[index].geometry.get_meta("source_geometry_id")) == int(spec.outlines[index].mesh),
-						"Deferred outline geometry retains the original selected normal mesh")
-			if spec.has("mesh"):
-				var mesh := node as MeshInstance3D
-				var instanced := node as MultiMeshInstance3D
-				var geometry: Mesh = instanced.multimesh.mesh if instanced != null else mesh.mesh
-				Helper.compare(h, geometry.get_meta("source_custom_attributes", {}), source_graph.meshes[int(spec.mesh)].get("attributes", {}),
-					"Original paint, surface identity and wind vertex attributes survive model packing")
-				for surface in range(geometry.get_surface_count()):
-					var material: Material = geometry.surface_get_material(surface) if instanced != null else mesh.get_active_material(surface)
-					var material_id: int = material.get_meta("source_material_id")
-					var description: Dictionary = source_graph.materials[material_id]
-					var source_geometry: Dictionary = source_graph.meshes[int(spec.mesh)]
-					var colour_values: Array = source_geometry.get("color", [])
-					var native_colours: Variant = geometry.surface_get_arrays(surface)[Mesh.ARRAY_COLOR]
-					if not description.get("vertexColors", false) or colour_values.is_empty():
-						h._check(native_colours == null or native_colours.is_empty(), "Ignored source vertex colours cannot leak into native instance tint")
-					else:
-						var components := int(source_geometry.get("colorSize", 3))
-						h._check(native_colours != null and native_colours.size() == colour_values.size() / components, "Original RGB/RGBA vertex colour count")
-						if native_colours != null:
-							for vertex in range(mini(native_colours.size(), colour_values.size() / components)):
-								for component in range(components):
-									h._check(absf(native_colours[vertex][component] - float(colour_values[vertex * components + component])) <= 1.0 / 255 + .000001,
-										"Original vertex colour and alpha survive native vertex-buffer precision")
-					if spec.flags.get("isOutline", false):
-						h._check(material.get_meta("source_outline", false) and is_same(material.get_meta("source_original_material"), rig.materials[material_id]),
-							"Native outline shaders retain the original scene-local material identity")
-					else:
-						h._check(is_same(material, rig.materials[material_id]), "Rendered body surfaces share the scene-local rig material table")
-				var box: AABB = node.global_transform * (instanced.multimesh.get_aabb() if instanced != null else mesh.get_aabb())
-				h._check(box.position.distance_to(h._reference_vector(spec.worldBounds[0])) < .0002
-					and box.end.distance_to(h._reference_vector(spec.worldBounds[1])) < .0002, "Original complete body mesh bounds: " + item.key)
-				if spec.has("instances"):
-					JointTests.compare_instances(h, node, spec.instances, "Original complete body instances")
-					for index in range(spec.get("instanceColors", []).size()):
-						var expected: Array = spec.instanceColors[index]
-						var color := instanced.multimesh.get_instance_color(index)
-						h._check(Vector3(color.r, color.g, color.b).distance_to(Vector3(expected[0], expected[1], expected[2])) < .00001, "Original body instance color")
-		for index in range(item.materials.size()):
-			var spec: Dictionary = item.materials[index]
-			if spec.has("cel"):
-				var source_material: Material = rig.materials[index]
-				Helper.compare(h, SourceCelData.material_source(source_material), spec.cel, "Original cel defines, options and typed material uniforms survive packing")
-				h._check(source_material.get_meta("source_cel_data", null) == cel_data, "All scene materials retain the same immutable shader/sampler Resource")
-				if cel_data != null:
-					Helper.compare(h, cel_data.programs[int(spec.cel.program)], source_graph.celPrograms[int(spec.cel.program)], "Material program indices resolve through the retained source bundle")
-					h._check(cel_data.sampler_images.size() == source_graph.celSamplers.size(), "Material retains source sampler images independently of its hierarchy")
-			if spec.get("type") != "shield":
-				continue
-			var material := rig.materials[index] as ShaderMaterial
-			h._check(material != null, "Original shield material has a native shader")
-			if material == null:
-				continue
-			for uniform: String in spec.uniforms:
-				if uniform in ["uPattern", "uColor", "uAccent"]:
-					continue
-				h._near(float(material.get_shader_parameter(uniform)), spec.uniforms[uniform], "Original shield uniform: " + uniform)
-		var other := BodyRig.new()
-		h.add_child(other)
-		if other.configure(item.key, phase):
-			for index in range(rig.materials.size()):
-				h._check(not is_same(rig.materials[index], other.materials[index]), "Body materials are private to each native scene instance")
-			for id: int in rig.nodes:
-				if not rig.nodes[id] is MultiMeshInstance3D:
-					continue
-				var first := rig.nodes[id] as MultiMeshInstance3D
-				var second := other.nodes[id] as MultiMeshInstance3D
-				h._check(not is_same(first.multimesh, second.multimesh), "Track instance transforms are private to each body")
-		other.free()
-		rig.free()
+	var rows := 0
+	# The geometry section exceeds the whole-suite budget, so each captured partition
+	# is decoded, checked and released before the next one is read.
+	for part in geometry.parts.size():
+		var items: Array = Content.read_fixture_part("bodyGeometry", part)
+		rows += items.size()
+		for item: Dictionary in items:
+			_check_geometry(h, item, baseline)
+		items = []
+	h._check(rows == int(geometry.count), "Every captured body geometry case is consumed in original section order")
 	for item: Dictionary in fixtures.bodyWeapons:
 		var rig := BodyRig.new()
 		h.add_child(rig)
@@ -259,6 +164,117 @@ static func run(h: Node, fixtures: Dictionary) -> void:
 	MissileViewRayTests.run(h, fixtures)
 	BodyRemovalTests.run(h, fixtures)
 	DissolveTests.run(h, fixtures)
+
+
+static func _check_geometry(h: Node, item: Dictionary, baseline: Dictionary) -> void:
+	baseline[item.key] = initial_states(item.nodes)
+	var rig := BodyRig.new()
+	h.add_child(rig)
+	var phase := func(index): return float(item.materials[index].uniforms.uTime) / float(Content.balance.bodyRules.shield.timeWindow)
+	if not rig.configure(item.key, phase):
+		h._check(false, "Pack original body scene: " + item.key)
+		rig.free()
+		return
+	h._check(rig.nodes.size() == item.nodes.size(), "Original complete body hierarchy including hidden/outline/combat nodes: " + item.key)
+	var source_graph: Dictionary = Content.read_json("res://data/bodies/%s.json" % item.key)
+	h._check(source_graph.has("celPrograms") and source_graph.has("celSamplers"), "Regenerate original cel shader programs and typed sampler data")
+	var cel_data := rig.source_root.get_meta("source_cel_data") as SourceCelData
+	h._check(cel_data != null, "Source material programs use a shared native Resource")
+	if cel_data != null:
+		Helper.compare(h, cel_data.programs, source_graph.get("celPrograms", []), "Original cel shader source and every referenced Three chunk survive packing")
+		Helper.compare(h, cel_data.samplers, source_graph.get("celSamplers", []), "Original cel gradient/field sampler precision survives packing")
+	for spec: Dictionary in item.nodes:
+		var node: Node3D = rig.nodes[int(spec.id)]
+		compare_transform(h, node.transform, ViewTests.frame(spec.matrix), "Original body endpoint local transform")
+		h._check(node.visible == spec.visible and node.get_meta("source_name") == spec.name, "Original body visibility and named rig binding")
+		if spec.has("helper"):
+			Helper.compare(h, node.get_meta("source_helper", {}), spec.helper, "Disabled source rig-preview helpers retain graph identity and explicit unavailable visualization")
+			h._check(not node.visible and not node is GeometryInstance3D, "Disabled source skeleton guides cannot become substitute combat geometry")
+		for flag: String in spec.flags:
+			h._check(node.get_meta(flag) == spec.flags[flag], "Original body outline/ring/occlusion flag")
+		if spec.has("outlineUniforms"):
+			Helper.compare(h, node.get_meta("source_outline_uniforms", {}), spec.outlineUniforms,
+				"Original retained outline nodes preserve world-scale-adjusted vertex expansion uniforms")
+		if spec.has("outlines"):
+			var shells: Array = node.get_meta("source_outline_shells", [])
+			h._check(shells.size() == spec.outlines.size(), "Deferred outline geometry never adds nodes to the authored body rig")
+			for index in range(mini(shells.size(), spec.outlines.size())):
+				Helper.compare(h, shells[index].uniforms, spec.outlines[index].uniforms, "Original deferred outline uniforms")
+				Helper.compare(h, shells[index].matrix, spec.outlines[index].matrix, "Original deferred outline local transform")
+				h._check(shells[index].child_index == spec.outlines[index].childIndex, "Deferred shells retain original child traversal order")
+				h._check(shells[index].same_geometry == spec.outlines[index].sameGeometry,
+					"Deferred shells preserve the source smooth-normal geometry choice")
+				h._check(shells[index].geometry is ArrayMesh and int(shells[index].geometry.get_meta("source_geometry_id")) == int(spec.outlines[index].mesh),
+					"Deferred outline geometry retains the original selected normal mesh")
+		if spec.has("mesh"):
+			var mesh := node as MeshInstance3D
+			var instanced := node as MultiMeshInstance3D
+			var geometry: Mesh = instanced.multimesh.mesh if instanced != null else mesh.mesh
+			Helper.compare(h, geometry.get_meta("source_custom_attributes", {}), source_graph.meshes[int(spec.mesh)].get("attributes", {}),
+				"Original paint, surface identity and wind vertex attributes survive model packing")
+			for surface in range(geometry.get_surface_count()):
+				var material: Material = geometry.surface_get_material(surface) if instanced != null else mesh.get_active_material(surface)
+				var material_id: int = material.get_meta("source_material_id")
+				var description: Dictionary = source_graph.materials[material_id]
+				var source_geometry: Dictionary = source_graph.meshes[int(spec.mesh)]
+				var colour_values: Array = source_geometry.get("color", [])
+				var native_colours: Variant = geometry.surface_get_arrays(surface)[Mesh.ARRAY_COLOR]
+				if not description.get("vertexColors", false) or colour_values.is_empty():
+					h._check(native_colours == null or native_colours.is_empty(), "Ignored source vertex colours cannot leak into native instance tint")
+				else:
+					var components := int(source_geometry.get("colorSize", 3))
+					h._check(native_colours != null and native_colours.size() == colour_values.size() / components, "Original RGB/RGBA vertex colour count")
+					if native_colours != null:
+						for vertex in range(mini(native_colours.size(), colour_values.size() / components)):
+							for component in range(components):
+								h._check(absf(native_colours[vertex][component] - float(colour_values[vertex * components + component])) <= 1.0 / 255 + .000001,
+									"Original vertex colour and alpha survive native vertex-buffer precision")
+				if spec.flags.get("isOutline", false):
+					h._check(material.get_meta("source_outline", false) and is_same(material.get_meta("source_original_material"), rig.materials[material_id]),
+						"Native outline shaders retain the original scene-local material identity")
+				else:
+					h._check(is_same(material, rig.materials[material_id]), "Rendered body surfaces share the scene-local rig material table")
+			var box: AABB = node.global_transform * (instanced.multimesh.get_aabb() if instanced != null else mesh.get_aabb())
+			h._check(box.position.distance_to(h._reference_vector(spec.worldBounds[0])) < .0002
+				and box.end.distance_to(h._reference_vector(spec.worldBounds[1])) < .0002, "Original complete body mesh bounds: " + item.key)
+			if spec.has("instances"):
+				JointTests.compare_instances(h, node, spec.instances, "Original complete body instances")
+				for index in range(spec.get("instanceColors", []).size()):
+					var expected: Array = spec.instanceColors[index]
+					var color := instanced.multimesh.get_instance_color(index)
+					h._check(Vector3(color.r, color.g, color.b).distance_to(Vector3(expected[0], expected[1], expected[2])) < .00001, "Original body instance color")
+	for index in range(item.materials.size()):
+		var spec: Dictionary = item.materials[index]
+		if spec.has("cel"):
+			var source_material: Material = rig.materials[index]
+			Helper.compare(h, SourceCelData.material_source(source_material), spec.cel, "Original cel defines, options and typed material uniforms survive packing")
+			h._check(source_material.get_meta("source_cel_data", null) == cel_data, "All scene materials retain the same immutable shader/sampler Resource")
+			if cel_data != null:
+				Helper.compare(h, cel_data.programs[int(spec.cel.program)], source_graph.celPrograms[int(spec.cel.program)], "Material program indices resolve through the retained source bundle")
+				h._check(cel_data.sampler_images.size() == source_graph.celSamplers.size(), "Material retains source sampler images independently of its hierarchy")
+		if spec.get("type") != "shield":
+			continue
+		var material := rig.materials[index] as ShaderMaterial
+		h._check(material != null, "Original shield material has a native shader")
+		if material == null:
+			continue
+		for uniform: String in spec.uniforms:
+			if uniform in ["uPattern", "uColor", "uAccent"]:
+				continue
+			h._near(float(material.get_shader_parameter(uniform)), spec.uniforms[uniform], "Original shield uniform: " + uniform)
+	var other := BodyRig.new()
+	h.add_child(other)
+	if other.configure(item.key, phase):
+		for index in range(rig.materials.size()):
+			h._check(not is_same(rig.materials[index], other.materials[index]), "Body materials are private to each native scene instance")
+		for id: int in rig.nodes:
+			if not rig.nodes[id] is MultiMeshInstance3D:
+				continue
+			var first := rig.nodes[id] as MultiMeshInstance3D
+			var second := other.nodes[id] as MultiMeshInstance3D
+			h._check(not is_same(first.multimesh, second.multimesh), "Track instance transforms are private to each body")
+	other.free()
+	rig.free()
 
 static func initial_states(nodes: Array) -> Dictionary:
 	var result: Dictionary = {}

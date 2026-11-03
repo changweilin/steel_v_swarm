@@ -30,7 +30,7 @@ func _bind(root: Node3D, spec: Dictionary, phase: float = .2) -> SceneryMotion:
 	var motion := SceneryMotion.new()
 	_check(motion.configure(root.get_node("Pivot"), spec, phase), "Bind captured waterfall state to a native borrowed pivot")
 	held_motions.append(motion)
-	for material: StandardMaterial3D in motion.materials:
+	for material: Material in motion.materials:
 		private_resources.append(weakref(material))
 	return motion
 

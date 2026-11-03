@@ -22,6 +22,7 @@ func _ready() -> void:
 	Controls.configure(Content.balance.mobile)
 	Controls.set_scheme("kbm")
 	super._ready()
+	network_test = false
 
 func _create_simulation() -> BattleSimulation:
 	return ControlsSimulation.new()
@@ -29,12 +30,13 @@ func _create_simulation() -> BattleSimulation:
 func _physics_process(delta: float) -> void:
 	if Session.launch_announced:
 		elapsed += delta
-	if elapsed > 18:
+	# The client launches after the authority and owns this deadline.
+	if not Session.dedicated and elapsed > 18:
 		push_error("NETWORK_CONTROLS_TIMEOUT mode=%s cast=%s pulse=%s view=%s" % [mode_seen, cast_seen, pulse_seen, view_seen])
 		get_tree().quit(1)
 		return
 	if Session.dedicated:
-		if simulation == null:
+		if simulation == null or not Session.launch_announced:
 			return
 		if fixture_pilot == null:
 			for unit: BattleUnit in simulation.pilots.values():
@@ -67,7 +69,7 @@ func _physics_process(delta: float) -> void:
 			simulation.clock = 10.04
 		return
 	super._physics_process(delta)
-	if simulation != null and not requested and simulation.pilots.has(Session.player_id()):
+	if simulation != null and Session.launch_announced and not requested and simulation.pilots.has(Session.player_id()):
 		requested = true
 		var wheel := InputEventMouseButton.new()
 		wheel.button_index = MOUSE_BUTTON_WHEEL_UP

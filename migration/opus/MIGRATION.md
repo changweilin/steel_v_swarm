@@ -338,19 +338,15 @@ Accepted contracts awaiting their consumers:
   A case that aborts before freeing its match leaks that world into later cases.
   Campaign deployment still requires authored chapter terrain. Pull failures
   reported by SN9; presentation failures cannot certify populated traversal or
-  field interactions. CI's `tools/export_web.ps1` `fixtures` step now runs
-  `tests/run.tscn` on `opengl3_angle`; the headless dummy renderer dropped
-  MultiMesh and texture data. On Linux `xvfb-run` + `opengl3` (llvmpipe) at main
-  `234abb7c`, texture, wildlife, petal, aquatic and marine pass, and 194 failures
-  remain: `berlin_1_summer.res` is absent from Git (10 core, 3 structure,
-  1 room-loading cases), 24 campaign story terrains, the `body_suite` budget
-  (SN4), 2 `mobile_suite` `lookSens`, and 153 `audio_suite` checks (83 synthesis
-  stem provenance, 14 native PCM bytes, 44 gain envelopes, 4 music). Windows
-  ANGLE CI reports the same 194. `burst_suite:108` also raises a
-  script error (SN4). GLES readback regenerates mips, so `texture_suite` fetches
-  uploaded levels on the GPU. On llvmpipe its 7 cel float-bit checks fail,
+  field interactions. CI's `tools/export_web.ps1` `fixtures` step runs
+  `tests/run.tscn` on `opengl3_angle`; the headless dummy renderer drops
+  MultiMesh and texture data. At `234abb7c`, both Windows ANGLE and Linux
+  `xvfb-run` + `opengl3` reported 153 `audio_suite` failures (83 synthesis stem
+  provenance, 14 native PCM bytes, 44 gain envelopes, 4 music). Those still
+  need an owner. On llvmpipe, `texture_suite`'s 7 cel float-bit checks fail
   because unorm8 sampling is 1 ULP off there; they need ANGLE or a hardware GL
-  driver.
+  driver. The `tests/body*_suite.gd` consumer hashes in `data/fixtures.json`
+  await the SN4 refresh (`145461ac`).
 - [ ] **O24 — Delivery:** certify native exports, mobile sensors/safe areas,
   Compatibility rendering, memory/performance, threaded audio on Web, browser
   single-player, Pages artifact contents and production native hosting. Complete

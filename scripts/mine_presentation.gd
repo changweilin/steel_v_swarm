@@ -86,8 +86,14 @@ func update_view(observer: Vector3, now: float) -> void:
 			continue
 		var opacity := minf(1, (float(cfg.SEE_M) - distance) / maxf(1, float(cfg.SEE_M) - float(cfg.CLEAR_M)))
 		for surface in range(visual.mesh.get_surface_count()):
-			var material: StandardMaterial3D = visual.mesh.surface_get_material(surface)
-			material.albedo_color.a = opacity
+			var material: Material = visual.mesh.surface_get_material(surface)
+			if material is StandardMaterial3D:
+				(material as StandardMaterial3D).albedo_color.a = opacity
+			elif material is ShaderMaterial:
+				var shader_material := material as ShaderMaterial
+				var color: Color = shader_material.get_shader_parameter("uSourceAlbedo")
+				color.a = opacity
+				shader_material.set_shader_parameter("uSourceAlbedo", color)
 			if not _current(token):
 				return
 

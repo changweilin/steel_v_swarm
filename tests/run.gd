@@ -179,7 +179,13 @@ func _run() -> void:
 	for fixture in fixtures.volumes:
 		var actor := BattleUnit.new()
 		add_child(actor)
-		actor.configure({"id":90001,"side":fixture.side,"kind":fixture.kind,"character":fixture.character,"position":Vector3.ZERO})
+		# Source volumes ignore side except for bases; build each unit on a side that owns its body.
+		var side: String = fixture.side
+		if side == "MERC":
+			side = "STEEL"
+		elif fixture.kind == "bunker":
+			side = "GUER"
+		actor.configure({"id":90001,"side":side,"kind":fixture.kind,"character":fixture.character,"position":Vector3.ZERO})
 		var target: CylinderShape3D = actor.hit_area.get_child(0).shape
 		_near(target.radius, fixture.radius, "Source target radius: " + fixture.kind)
 		_near(target.height, fixture.height, "Source target height: " + fixture.kind)

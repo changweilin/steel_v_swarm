@@ -6,14 +6,25 @@ static func run(h: Node, fixtures: Dictionary) -> void:
 	if not fixtures.has("bodyAiming"):
 		h._check(false, "Regenerate original world stabilization/weapon-axis body references")
 		return
+	var section: Dictionary = Content.fixture_registry.get("sections", {}).get("bodyGeometry", {})
+	if section.is_empty():
+		h._check(false, "Regenerate original body geometry references")
+		return
 	var baseline: Dictionary = {}
-	for item: Dictionary in fixtures.bodyGeometry:
-		var states: Dictionary = {}
-		for spec: Dictionary in item.nodes:
-			states[int(spec.id)] = {"parent": spec.parent, "position": spec.trs.p, "quaternion": spec.trs.q, "scale": spec.trs.s, "visible": spec.visible}
-			if spec.has("instances"):
-				states[int(spec.id)].instances = spec.instances
-		baseline[item.key] = states
+	var rows := 0
+	# The geometry section exceeds the whole-suite budget, so only each partition's initial states are kept.
+	for part in section.parts.size():
+		var items: Array = Content.read_fixture_part("bodyGeometry", part)
+		rows += items.size()
+		for item: Dictionary in items:
+			var states: Dictionary = {}
+			for spec: Dictionary in item.nodes:
+				states[int(spec.id)] = {"parent": spec.parent, "position": spec.trs.p, "quaternion": spec.trs.q, "scale": spec.trs.s, "visible": spec.visible}
+				if spec.has("instances"):
+					states[int(spec.id)].instances = spec.instances
+			baseline[item.key] = states
+		items = []
+	h._check(rows == int(section.count), "Every captured body geometry case is consumed in original section order")
 	for item: Dictionary in fixtures.bodyAiming:
 		var rig := BodyRig.new()
 		h.add_child(rig)

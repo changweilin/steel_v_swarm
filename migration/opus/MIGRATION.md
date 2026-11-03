@@ -345,8 +345,8 @@ Accepted contracts awaiting their consumers:
   remain: `berlin_1_summer.res` is absent from Git (10 core, 3 structure,
   1 room-loading cases), 24 campaign story terrains, the `body_suite` budget
   (SN4), 2 `mobile_suite` `lookSens`, and 153 `audio_suite` checks (83 synthesis
-  stem provenance, 14 native PCM bytes, 44 gain envelopes, 4 music). The audio
-  checks still need a Windows confirmation. `burst_suite:108` also raises a
+  stem provenance, 14 native PCM bytes, 44 gain envelopes, 4 music). Windows
+  ANGLE CI reports the same 194. `burst_suite:108` also raises a
   script error (SN4). GLES readback regenerates mips, so `texture_suite` fetches
   uploaded levels on the GPU. On llvmpipe its 7 cel float-bit checks fail,
   because unorm8 sampling is 1 ULP off there; they need ANGLE or a hardware GL

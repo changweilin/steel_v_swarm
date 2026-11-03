@@ -158,6 +158,10 @@ func story_texture(path: String, mipmaps: bool = false) -> Texture2D:
 		return null
 	# A failed native decode stays unavailable and uncached, so the caller keeps
 	# the source fallback path and a later valid import can still be loaded.
+	# An import the editor marked invalid is rejected before load() reports it.
+	var descriptor := ConfigFile.new()
+	if descriptor.load(native_path + ".import") == OK and not bool(descriptor.get_value("remap", "valid", true)):
+		return null
 	var texture := load(native_path) as Texture2D
 	if texture == null:
 		return null

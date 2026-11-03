@@ -36,7 +36,29 @@ func _ready() -> void:
 	_check(after != null and not after.has_mipmaps() and after.get_data() == before_bytes, "Mipmap generation never mutates the plain cached art")
 	_check(Content.story_texture(VALID) == plain, "Plain art is reused from the cache")
 	_check(Content.story_texture(VALID, true) == mipmapped, "Mipmapped art is reused from the cache")
+	# Every campaign story path either decodes natively or stays unavailable;
+	# an invalid native import must never reach mipmap generation.
+	var story_paths := {}
+	_collect_story_paths(Content.campaign, story_paths)
+	_check(not story_paths.is_empty(), "Campaign metadata names story art")
+	for path: String in story_paths:
+		var art := Content.story_texture(path, true)
+		if art == null:
+			_check(not Content.art_cache.has("res://" + path + "/mipmaps"), "Unavailable story art is never cached: " + path)
+			continue
+		var image := art.get_image()
+		_check(image != null and image.has_mipmaps(), "Decoded story art carries mipmaps: " + path)
 	_finish()
+
+func _collect_story_paths(value: Variant, paths: Dictionary) -> void:
+	if value is Dictionary:
+		for item: Variant in value.values():
+			_collect_story_paths(item, paths)
+	elif value is Array:
+		for item: Variant in value:
+			_collect_story_paths(item, paths)
+	elif value is String and value.begins_with("assets/story/"):
+		paths[value] = true
 
 func _finish() -> void:
 	print("STORY_TEXTURE_PASS " if failures == 0 else "STORY_TEXTURE_FAIL ", assertions, " assertions, ", failures, " failures")

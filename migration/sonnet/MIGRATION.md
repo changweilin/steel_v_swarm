@@ -38,28 +38,20 @@ rejects the fog scenes. On Linux run real-renderer checks as
 
 ## Test fixtures
 
-- [ ] **SN4 — Model suites:** `tests/civilian_body_suite.gd` reads
-  `civilianBodyGeometry` partition by partition and `tests/burst_suite.gd` parents
-  its fixture units under a `BattleSimulation`; both edits are done but unpublished.
-  Remaining: `tests/body_suite.gd` consumes `bodyGeometry` the same way (the other
-  sections fit the 256 MiB budget once both large sections are excluded; the
-  closure is 1,010,537,852 bytes against 268,435,456 today), and
-  `tests/body_{aim,combat,gait}_suite.gd`, which body_suite preloads, must stream
-  it too because each reads `fixtures.bodyGeometry` whole. Retain
-  every row, nested frame sequence, rig reset and cross-frame state. Do not raise
-  the encoded-byte budget. Blockers: (1) the consumer scan in
-  `tools/fixture_sections.mjs::fixtureConsumers` treats any quoted section name as a
-  whole-section dependency, so an incremental reader is still preloaded; the scan
-  must skip names read through `Content.read_fixture_part` /
-  `Content.fixture_registry`. (2) After that, run `refreshFixtureConsumers` for
-  O25 because the edited suites changed their registered hashes. (3)
-  `civilian_body_suite` then fails 4020 outline-width checks with the
-  incremental reader: civilian `torso` and `pelvis` shells report `local_width`
-  .06904542 / min .00303800 / max .00621409 against .06829454 / .00300496 /
-  .00614651. Source semantics of `OutlineRules.local_uniforms` after appearance
-  scaling need Opus before `scripts/civilian_body_builder.gd` changes. (4)
-  `burst_suite` cannot run until `assets/bodies/steel_s01.scn` (and the other
-  non-kami hero bodies) are published by Models.
+- [ ] **SN4 — Model suites:** `tests/body_suite.gd` and `tests/body_{aim,combat,gait}_suite.gd`
+  now stream `bodyGeometry`, and `civilian_body_suite.gd` streams `civilianBodyGeometry`
+  (the `body_suite` closure is 267,787,693 bytes against the unchanged 268,435,456). Do not
+  raise the encoded-byte budget. Remaining: (1) `tests/burst_suite.gd` parents its fixture
+  units under a `BattleSimulation`, but cannot run until `assets/bodies/steel_s01.scn` (and
+  the other non-kami hero bodies) are published by Models. (2) `civilian_body_suite` fails
+  4020 outline-width checks with the incremental reader: civilian `torso` and `pelvis`
+  shells report `local_width` .06904542 / min .00303800 / max .00621409 against
+  .06829454 / .00300496 / .00614651. Source semantics of `OutlineRules.local_uniforms` after
+  appearance scaling need Opus before `scripts/civilian_body_builder.gd` changes. (3) The
+  registered consumer hashes are stale for all edited suites (see the O25 request below);
+  CI `tools/check_git_storage.mjs --verify-fixtures` stays red until they are published.
+  Acceptance: `--fixture-suite=tests/{body,civilian_body,burst}_suite.gd` with empty engine
+  error output, on a real driver for the MultiMesh sections.
 
 ## Generated content
 
@@ -116,9 +108,12 @@ rejects the fog scenes. On Linux run real-renderer checks as
   data/worlds/berlin_1_autumn.json", a stale world producer hash. It clears with the
   corrected world references and SN8 regeneration.
 
-- **Opus — O25 consumer refresh:** publish `refreshFixtureConsumers` after the
-  edited `tests/{campaign,death_sequence,burst,civilian_body}_suite.gd` are accepted;
-  their registered hashes are stale. Also unresolved on the shared side:
+- **Opus — O25 consumer refresh:** publish `refreshFixtureConsumers` for the edited
+  `tests/{campaign,death_sequence,burst,civilian_body,body,body_aim,body_combat,body_gait}_suite.gd`;
+  their registered hashes are stale and `check_git_storage.mjs --verify-fixtures` fails
+  on them in CI. Other owners' sub-suites that `body_suite` preloads still fail on a real
+  driver (flame and fire presentation, scene damage, NPC primitives); the streamed
+  `body_suite`, `body_aim`, `body_combat` and `body_gait` checks themselves report none. Also unresolved on the shared side:
   `death_sequence_suite` reports 4916 failures (death-camera random order, topple
   and producer frames) with or without the lambda-cycle fix, and `campaign_suite`
   reports only the missing story terrain resources. The raster scenes

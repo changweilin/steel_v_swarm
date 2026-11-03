@@ -128,6 +128,13 @@ Accepted contracts awaiting their consumers:
   before its render instance, so `scripts/civilian_body_builder.gd::_part` keeps each one
   alive in mesh metadata; metadata on the part root is not enough. The user directed this
   one line past the SN4 lease; keep it when SN4 publishes that file.
+- **Sonnet view — feed expiry:** the user directed `scripts/battle_feed.gd` to connect
+  each row's lifetime timer to `row.queue_free`. A lambda capturing `row` reports a
+  freed capture after `clear()`; keep the bound method when the view lane edits it.
+- `scripts/main.gd` defers the room prebuild until the retired simulation is freed.
+  A native world holds most of the mesh RID budget, and loading the next bundle on
+  worker threads while the previous one was freed logged `unimplemented base type`
+  on instantiate. Two worlds held together without that overlap logged nothing.
 - `tests/run.gd` fails a selected suite whose `run` takes other arguments, so
   `tests/audio_{move,clip}_suite.gd` stay under `tests/audio_lifecycle.tscn`.
 
@@ -377,9 +384,12 @@ Accepted contracts awaiting their consumers:
     it. Acceptance: record `echo_fired` instead of sampling `shells`, and pass 20
     consecutive ENet runs, or capture a failing trace that shows an Opus delivery
     defect.
-  - **Opus — `-Rematch`:** reaches `NETWORK_REMATCH_PASS`, then client RID errors
-    and `Lambda capture at index 0 was freed` fail it on both transports, including
-    with the prior `session.gd`. Acceptance: empty client and server errors.
+  - **Opus/SN8 — `-Rematch` bundles:** the fixture rolls a season per round and
+    round 2 loads the side-swapped bundle, but only `berlin_1_{spring,summer,autumn}`
+    and `berlin_swap_1_summer` exist, so most rolls fail on a missing bundle.
+    Forced summer passes 10 consecutive runs on both transports with empty errors.
+    Acceptance follows SN8 regeneration: unforced runs with empty client and server
+    errors.
 
 Baseline commands from the repository root:
 

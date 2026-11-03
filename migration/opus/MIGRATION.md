@@ -377,26 +377,11 @@ Accepted contracts awaiting their consumers:
   probes in 40 s, each under 3.7 s. The concurrent machine load is unknown and the
   failure was not reproduced; capture probe IDs and client frame times if it recurs.
 - [ ] **Open transport handoffs:**
-  - **Opus — light `weapon_fire` dropped before the first snapshot (`-Projectiles` echo):**
-    the fixture now records `echo_fired` instead of sampling `shells`, and
-    `tools/test_network.ps1` gives `-Projectiles` a 120 s client budget (world load
-    took up to 55 s). With summer pinned, ENet still failed with `echo=false` in
-    3 of 20 runs and 1 of 60. A traced failure shows the reliable `_body_event` for
-    the light `weapon_fire` (serial 1) reaching the client with `started=true`,
-    `launch=true` and `simulation.pilots` empty. `_body_event_feedback`
-    (`scripts/main.gd`) returns on `pilot == null`, so `cockpit.fire_feedback` never
-    queues the burst echo and `echo_fired` never fires. Pilots appear only when the
-    first snapshot is applied (`scripts/simulation.gd`), and the RPC channel can
-    overtake it; the fixture fires at authority launch, the earliest possible moment.
-    Required contract: a `weapon_fire` event for the local actor received before its
-    pilot exists must be held and delivered to `cockpit.fire_feedback` once the pilot
-    is bound (the existing `accepted_serial` check dedups a later snapshot replay).
-    Acceptance: 20 consecutive ENet `-Projectiles` runs with summer pinned and empty
-    errors, plus a fixture case for an event received while `pilots` is empty.
-    Separate causes of remaining failures: unforced seasons roll missing SN8 bundles
-    (see Rematch below), and world load stalls the main thread for 15–55 s, which
-    can exceed the ENet peer timeout (one `heavy=false` run, server saw the peer as
-    disconnected).
+  - **Opus — `-Projectiles` world-load stall:** world load stalls the main thread for
+    15–55 s, which can exceed the ENet peer timeout (one earlier `heavy=false` run,
+    server saw the peer as disconnected). `-Projectiles` pins `--season summer`, so it
+    does not roll missing SN8 bundles. Held-event delivery after the pilot binds has
+    only transport coverage (`-Projectiles`), not a unit case.
   - **Opus/SN8 — `-Rematch` bundles:** the fixture rolls a season per round and
     round 2 loads the side-swapped bundle, but only `berlin_1_{spring,summer,autumn}`
     and `berlin_swap_1_summer` exist, so most rolls fail on a missing bundle.

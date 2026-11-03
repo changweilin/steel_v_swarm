@@ -35,7 +35,7 @@ try {
         if ($Cockpits) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/cockpit_network.tscn', '--', '--server', '--port', $listenPort) }
         if ($Cameras) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/camera_network.tscn', '--', '--server', '--port', $listenPort) }
         if ($Bursts) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/burst_network.tscn', '--', '--server', '--port', $listenPort) }
-        if ($Projectiles) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/projectile_visual_network.tscn', '--', '--server', '--port', $listenPort) }
+        if ($Projectiles) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/projectile_visual_network.tscn', '--', '--server', '--port', $listenPort, '--season', 'summer') }
         if ($Aiming) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/aiming_network.tscn', '--', '--server', '--port', $listenPort) }
         if ($MissileDefenses) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/missile_defense_network.tscn', '--', '--server', '--port', $listenPort) }
         if ($Bots) { $serverArguments = @('--headless', '--path', $projectRoot, 'res://tests/bot_network.tscn', '--', '--server', '--port', $listenPort) }

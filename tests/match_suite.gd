@@ -92,6 +92,7 @@ static func run(h: Node, fixtures: Dictionary) -> void:
 	_unbalance_publication(h)
 	_snapshot_acceptance(h)
 	_relay_activation(h)
+	_held_fire_events(h)
 	print("MATCH_REFERENCE_PASS deaths=", fixtures.matchDeaths.size())
 
 static func create(h: Node) -> MatchSimulation:
@@ -214,6 +215,22 @@ static func _snapshot_acceptance(h: Node) -> void:
 	authority.free()
 	replica.free()
 	next.free()
+
+static func _held_fire_events(h: Node) -> void:
+	var simulation := create(h)
+	var main := MainScript.new()
+	main.simulation = simulation
+	h._check(simulation.pilots.is_empty(), "Fixture local actor has no pilot before the first snapshot")
+	main._body_event_feedback({"type": "weapon_fire", "actor": 1, "serial": 1})
+	main._body_event_feedback({"type": "body_echo", "actor": 1, "serial": 2})
+	main._body_event_feedback({"type": "weapon_fire", "actor": 1})
+	h._check(main.pending_fire_events.size() == 1 and int(main.pending_fire_events[0].serial) == 1, "Only serialized weapon_fire events received before the pilot exists are held")
+	for serial in range(2, main.PENDING_FIRE_LIMIT + 5):
+		main._body_event_feedback({"type": "weapon_fire", "actor": 1, "serial": serial})
+	h._check(main.pending_fire_events.size() == main.PENDING_FIRE_LIMIT and int(main.pending_fire_events[-1].serial) == main.PENDING_FIRE_LIMIT + 4,
+		"Held weapon_fire events stay bounded and keep the newest")
+	main.free()
+	simulation.free()
 
 static func _relay_activation(h: Node) -> void:
 	var simulation := create(h)

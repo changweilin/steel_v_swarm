@@ -59,6 +59,9 @@ static func run(h: Node, fixtures: Dictionary) -> void:
 			else:
 				sequence.advance(float(step.delta), surface)
 			_compare(h, sequence, step, calls, queries, int(draws.count))
+		# The output lambda captures its sequence; clear the callbacks to break the RefCounted cycle.
+		sequence.random_sample = Callable()
+		sequence.output = Callable()
 	_overlay(h, fixtures)
 	_lifecycle(h)
 

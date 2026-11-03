@@ -91,9 +91,23 @@ func load_save() -> Error:
 	if not persist:
 		return OK
 	var file := ConfigFile.new()
-	var error := file.load(save_path)
+	var error := _read(file, save_path)
 	if error != OK:
 		configure(rules)
 		return OK if error == ERR_FILE_NOT_FOUND else error
 	configure(rules, file.get_value("audio", "values", {}))
 	return OK
+
+# ConfigFile.parse reports malformed section headers through the engine error log,
+# so the bracketed header syntax is validated first and surfaces as a plain Error.
+static func _read(file: ConfigFile, path: String) -> Error:
+	if not FileAccess.file_exists(path):
+		return ERR_FILE_NOT_FOUND
+	var text := FileAccess.get_file_as_string(path)
+	if FileAccess.get_open_error() != OK:
+		return FileAccess.get_open_error()
+	for line: String in text.split("\n"):
+		var trimmed := line.strip_edges()
+		if trimmed.begins_with("[") and not (trimmed.ends_with("]") and trimmed.length() > 2):
+			return ERR_PARSE_ERROR
+	return file.parse(text)

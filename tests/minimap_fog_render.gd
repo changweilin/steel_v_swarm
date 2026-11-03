@@ -12,7 +12,7 @@ func _run() -> void:
 		push_error("Minimap raster comparisons require an active native renderer")
 		get_tree().quit(1)
 		return
-	var fixtures: Dictionary = _captured_fixtures() if OS.get_cmdline_user_args().has("--source-capture") else Content.read_json("res://data/fixtures.json")
+	var fixtures: Dictionary = _captured_fixtures() if OS.get_cmdline_user_args().has("--source-capture") else Content.read_json("res://data/fixtures.json", ["minimapFog"])
 	var full_raster := OS.get_cmdline_user_args().has("--full-raster")
 	if not fixtures.has("minimapFog") or not MinimapWindow.available():
 		push_error("Regenerate original minimap fog raster sequences")

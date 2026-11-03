@@ -2,19 +2,31 @@ extends RefCounted
 
 static func compare(actual: Image, expected: Image, tolerance: float = 2.0 / 255) -> Dictionary:
 	assert(actual.get_size() == expected.get_size(), "Raster comparison requires matching dimensions")
-	var maximum := 0.0
+	# Compare exact stored bytes. Color's Float32 channels would turn a two-byte
+	# difference into 0.00784316... which exceeds the double 2/255 tolerance.
+	var limit := roundi(tolerance * 255.0)
+	var maximum := 0
 	var mismatched := 0
-	for y in range(expected.get_height()):
-		for x in range(expected.get_width()):
-			var a := actual.get_pixel(x, y)
-			var b := expected.get_pixel(x, y)
-			# Native offscreen buffers use premultiplied RGB; browser PNGs use straight RGB.
-			var error := maxf(absf(a.a - b.a), maxf(absf(a.r - b.r * b.a),
-				maxf(absf(a.g - b.g * b.a), absf(a.b - b.b * b.a))))
-			maximum = maxf(maximum, error)
-			if error > tolerance:
-				mismatched += 1
-	return {"pixels": mismatched, "maximum": maximum}
+	var a_bytes := _rgba8(actual)
+	var b_bytes := _rgba8(expected)
+	for offset in range(0, b_bytes.size(), 4):
+		# Native offscreen buffers use premultiplied RGB; browser PNGs use straight RGB.
+		var alpha := b_bytes[offset + 3]
+		var error := absi(a_bytes[offset + 3] - alpha)
+		for channel in range(3):
+			# Integer round-half-up of straight * alpha / 255 (the premultiplied byte).
+			var premultiplied := (b_bytes[offset + channel] * alpha * 2 + 255) / 510
+			error = maxi(error, absi(a_bytes[offset + channel] - premultiplied))
+		maximum = maxi(maximum, error)
+		if error > limit:
+			mismatched += 1
+	return {"pixels": mismatched, "maximum": float(maximum) / 255.0}
+
+static func _rgba8(image: Image) -> PackedByteArray:
+	var copy := image.duplicate() as Image
+	if copy.get_format() != Image.FORMAT_RGBA8:
+		copy.convert(Image.FORMAT_RGBA8)
+	return copy.get_data()
 
 static func diagnostic(actual: Image) -> Image:
 	var result := actual.duplicate() as Image

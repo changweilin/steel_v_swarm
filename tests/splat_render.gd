@@ -10,7 +10,7 @@ func _run() -> void:
 		push_error("Splat raster certification requires a rendered Godot session")
 		get_tree().quit(1)
 		return
-	var fixtures: Dictionary = Content.read_json("res://data/fixtures.json")
+	var fixtures: Dictionary = Content.read_json("res://data/fixtures.json", ["splatPaintRasters"])
 	if not fixtures.has("splatPaintRasters") or not Content.balance.get("screenSplats", {}).has("paint"):
 		push_error("Regenerate original browser glass raster fixtures")
 		get_tree().quit(1)

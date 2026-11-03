@@ -368,7 +368,8 @@ func _run_fixture_suite(suite: Variant) -> void:
 		return
 	var data: Dictionary = Content.read_json("res://data/fixtures.json", keys)
 	print("SOURCE_SUITE_BEGIN ", suite.resource_path)
-	if suite in [RoomWorldResourceTests, RoomWorldPrebuildTests]:
+	# Suites that read their own resources declare run(h) without fixture data.
+	if _suite_run_arity(suite) == 1:
 		await suite.run(self)
 	else:
 		await suite.run(self, data)
@@ -376,6 +377,12 @@ func _run_fixture_suite(suite: Variant) -> void:
 	await get_tree().process_frame
 	print("SOURCE_SUITE_END ", suite.resource_path, " assertions=", assertions - previous_assertions, " failures=", failures - previous_failures)
 	failure_scope = "core"
+
+func _suite_run_arity(suite: Script) -> int:
+	for method: Dictionary in suite.get_script_method_list():
+		if method.name == "run":
+			return method.args.size()
+	return 2
 
 func _missile_flight_tests(fixtures: Array) -> void:
 	for fixture in fixtures:

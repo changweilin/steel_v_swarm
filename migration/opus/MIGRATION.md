@@ -331,8 +331,8 @@ Accepted contracts awaiting their consumers:
   cannot substitute for complete match comparison. Resolve new failures before
   calling a path verified. Current `tests/run.tscn` completes on a real GL driver with
   the `berlin_1` worlds; its 180 failures belong to Sonnet presentation audio and mobile preferences,
-  SN4 body streaming and missing campaign terrain, and `burst_suite` stops at its
-  script error. `--smoke` needs SN8's `berlin_swap_5_autumn`. Baseline ENet and WebSocket
+  SN4 body streaming and missing campaign terrain, and `burst_suite` fails its
+  integration case explicitly without an authored world. `--smoke` needs SN8's `berlin_swap_5_autumn`. Baseline ENet and WebSocket
   pass with empty error logs when a room rolls a generated world; until SN8 finishes, a
   roll of a missing `berlin_swap_1_*` fails the run at preload.
   Engine errors remain failed acceptance even when a component's assertions pass.
@@ -354,8 +354,7 @@ Accepted contracts awaiting their consumers:
   provenance, 14 native PCM bytes, 44 gain envelopes, 4 music). Those still
   need an owner. On llvmpipe, `texture_suite`'s 7 cel float-bit checks fail
   because unorm8 sampling is 1 ULP off there; they need ANGLE or a hardware GL
-  driver. The `tests/body*_suite.gd` consumer hashes in `data/fixtures.json`
-  await the SN4 refresh (`145461ac`).
+  driver.
 - [ ] **O24 — Delivery:** certify native exports, mobile sensors/safe areas,
   Compatibility rendering, memory/performance, threaded audio on Web, browser
   single-player, Pages artifact contents and production native hosting. Complete

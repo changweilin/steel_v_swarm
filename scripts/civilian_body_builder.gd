@@ -79,12 +79,17 @@ static func configure(body: BodyRig, seed_value: int, profession: int, side: Str
 		push_error("Missing original civilian outline width rules; regenerate source content")
 		return false
 	var width := OutlineRules.unit_width(target, Content.balance.outline)
+	# The captured shell widths follow the appearance and height scaling but not the
+	# torso/pelvis shoulder-width scale, so measure with those surface scales neutral.
+	for surface: Node3D in main.bindings.surfaces.values():
+		body.poses.set_scale(surface, Vector3.ONE)
 	var inverse_basis := body.source_root.global_basis.inverse()
 	for node: Node3D in body.nodes.values():
 		if node.get_meta("isOutline", false):
-			# Source outlinify runs after all civilian appearance and height scaling.
 			node.set_meta("source_outline_uniforms", OutlineRules.local_uniforms(
 				inverse_basis * (node.get_parent() as Node3D).global_basis, width, Content.balance.outline))
+	for surface: Node3D in main.bindings.surfaces.values():
+		body.poses.set_scale(surface, Vector3(appearance.shoulderScale, 1, 1))
 	return SourceOutlineBinding.install(body.source_root)
 
 static func _part(key: String, appearance: Dictionary) -> Dictionary:

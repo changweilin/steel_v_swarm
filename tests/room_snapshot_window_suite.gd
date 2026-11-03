@@ -1,0 +1,40 @@
+extends RefCounted
+
+static func run(h: Node) -> void:
+	var window := RoomSnapshotWindow.new()
+	var limit := RoomSnapshotWindow.MAXIMUM_UNACKNOWLEDGED
+	h._check(not window.is_full(7) and not window.is_held(7), "An unseen peer starts with an open window")
+	for serial in limit:
+		h._check(not window.is_full(7), "Window accepts snapshots up to its bound")
+		window.sent(7, serial * 3)
+	h._check(window.is_full(7) and not window.is_full(8), "Unacknowledged snapshots block only their own peer")
+	window.acknowledge(7, -1)
+	window.acknowledge(9, 1000)
+	h._check(window.is_full(7), "Stale and foreign acknowledgements return no credit")
+	window.acknowledge(7, 0)
+	h._check(not window.is_full(7), "An acknowledgement returns one credit")
+	window.sent(7, 50)
+	window.acknowledge(7, 50)
+	h._check(window.unacknowledged[7].is_empty(), "Acknowledgement is cumulative across earlier serials")
+	window.hold(7, [{"n": 1}])
+	window.hold(7, [])
+	window.hold(7, [{"n": 2}, {"n": 3}])
+	h._check(window.is_held(7), "An empty frame still marks the peer as owing a snapshot")
+	h._check(window.release(7) == [{"n": 1}, {"n": 2}, {"n": 3}], "Held reports release once in publication order")
+	h._check(not window.is_held(7) and window.release(7).is_empty(), "Released reports cannot replay")
+	window.hold(8, [])
+	h._check(window.is_held(8) and window.release(8).is_empty(), "A skipped frame without reports is still owed")
+	var flood: Array = []
+	for index in RoomSnapshotWindow.MAXIMUM_HELD_EVENTS + 40:
+		flood.append({"n": index})
+	window.hold(7, flood)
+	var kept := window.release(7)
+	h._check(kept.size() == RoomSnapshotWindow.MAXIMUM_HELD_EVENTS and kept[0].n == 40 and kept[-1].n == flood[-1].n, "A stalled peer keeps the newest bounded report suffix")
+	window.sent(7, 60)
+	window.hold(7, [{"n": 1}])
+	window.forget(7)
+	h._check(not window.is_held(7) and not window.unacknowledged.has(7), "A departed route takes its credit and reports with it")
+	window.sent(8, 61)
+	window.hold(8, [{"n": 1}])
+	window.clear()
+	h._check(window.unacknowledged.is_empty() and window.held.is_empty(), "A new match starts with empty windows")

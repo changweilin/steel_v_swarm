@@ -15,7 +15,7 @@ class WireProbe extends BattleSimulation:
 		received.append({"peer": peer, "kind": "cast", "n": int(point.x)})
 		return true
 	func snapshot(peer: int = 0, _side: Variant = null) -> Dictionary:
-		return {"recipient": peer}
+		return {"recipient": peer, "events": []}
 	func apply_snapshot(data: Dictionary) -> bool:
 		received_snapshots.append(data.duplicate(true))
 		return true

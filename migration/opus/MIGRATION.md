@@ -352,6 +352,34 @@ Accepted contracts awaiting their consumers:
   transport loss/bandwidth/MTU and cleanup acceptance on the current build.
   Populated snapshots exceed the 64 KiB WebSocket default; validate the 1 MiB
   session buffer against the largest authored match and the Web client.
+  `scripts/room_snapshot_window.gd` allows two unacknowledged full snapshots per
+  route; skipped ticks hold their event frame, capped at the newest 512 for a
+  stalled client, and `_retain_reliable_window` stops ENet decelerating on client
+  frame time. `-LobbyLatency` models a 170 ms client frame. ENet then delivers
+  about 2 snapshots/s, with retransmits around 10% on loopback and one observed
+  2.8 s transient; network loss, the unthrottled window on real links and the
+  per-tick `_state_for` cost of skipped peers remain unqualified. Reliable
+  `_body_event` and `_sync_lobby` traffic is not windowed, so a client stalled
+  for minutes can still fill the WebSocket buffer. WebSocket `-LobbyLatency`
+  passed 17 consecutive quiet-machine runs (11 instrumented, server probes on a
+  2 s wall cadence) with max latency under 0.4 s, but an earlier batch timed out
+  in 7 of 9 runs: the client collected only 5-9 of 12
+  probes in 40 s, each under 3.7 s. The concurrent machine load is unknown and the
+  failure was not reproduced; capture probe IDs and client frame times if it recurs.
+- [ ] **Open transport handoffs:**
+  - **Opus/Sonnet presentation — `-Projectiles` echo:** with client-anchored stages, ENet failed 1
+    of 16 runs with `echo=false` and everything else true; the failed run logged
+    no event trace, so the cause is unproven. In 10 traced runs the light
+    `weapon_fire` arrived in serial 0 after client launch, so it was never held or
+    overwritten in `pending_snapshot`. A 300 ms client frame does not reproduce it
+    because `view.frameCap` bounds shell steps. The echo is one shell sampled only
+    in `_physics_process`, so a same-frame collision on a rolled world would hide
+    it. Acceptance: record `echo_fired` instead of sampling `shells`, and pass 20
+    consecutive ENet runs, or capture a failing trace that shows an Opus delivery
+    defect.
+  - **Opus — `-Rematch`:** reaches `NETWORK_REMATCH_PASS`, then client RID errors
+    and `Lambda capture at index 0 was freed` fail it on both transports, including
+    with the prior `session.gd`. Acceptance: empty client and server errors.
 
 Baseline commands from the repository root:
 
@@ -361,6 +389,7 @@ godot --headless --path . -- --smoke
 ./tools/test_network.ps1 -Godot C:/path/to/godot_console.exe
 ./tools/test_network.ps1 -Godot C:/path/to/godot_console.exe -RecoveryQueue
 ./tools/test_network.ps1 -Godot C:/path/to/godot_console.exe -SnapshotEvents
+./tools/test_network.ps1 -Godot C:/path/to/godot_console.exe -LobbyLatency
 ```
 
 Select relevant existing case switches in `tools/test_network.ps1` one per run

@@ -40,9 +40,11 @@ keep the full requests; find them by searching their backlogs for `**Opus`.
     "cel resource metadata". Add "original sign emission" if the selected baseline
     bundle has active glow.
 - [ ] **O27 — Story media (lane A):** all 70 PNG-named `assets/story/` files hold
-  JPEG bytes. Complete Terra's "story image encoding" and "failed story load guard",
-  then publish `assets/logo_flat.png` and `assets/loading/`. The offline copier
-  preserves authored bytes and excludes source-editor `.import` descriptors.
+  JPEG bytes. Complete Terra's "story image encoding", then publish
+  `assets/logo_flat.png` and `assets/loading/`. The offline copier preserves
+  authored bytes and excludes source-editor `.import` descriptors.
+  `Content.story_texture` rejects invalid imports before `load()`; keep
+  `tests/story_texture.tscn` passing once the encoded art loads with mipmaps.
 
 Remaining inbound requests follow their files: `shaders/` and shared numeric/font
 adapters go to B, simulation and unit contracts to C, session and snapshot

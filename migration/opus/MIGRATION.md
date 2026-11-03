@@ -33,6 +33,11 @@ keep the full requests; find them by searching their backlogs for `**Opus`.
   "shared audio provenance/consumer publication", "original presentation pool
   provenance", "shared projectile fixture publication", "current particle
   provenance" and Terra's "spectator, minimap, PiP, scope and dialogue provenance".
+  Land SN7's unique-staging `writeSourceFile` fix in the same change: 86
+  `tests/fixtures/*.json` captures pin the current `tools/fixture_json.mjs` bytes.
+  The reviewed patch is in the description of changweilin/steel_v_swarm#22.
+  `import_source.mjs` needs its npm dependencies installed; without them,
+  regenerate the consumer plan through `fixture_sections.mjs::refreshFixtureConsumers`.
 - [ ] **O26 — World contracts:** complete before SN8.
   - **O26A (lane A):** "layered-deck reference provenance", including signed-zero
     preservation in `tools/world_references.mjs`.

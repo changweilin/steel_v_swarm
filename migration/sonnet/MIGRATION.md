@@ -25,15 +25,16 @@ Isolate one suite with
   restoration. Acceptance: `tests/structure_suite.gd` rotated, mirrored, zero-scale,
   overlap and repeated-clearance cases, `tests/view_occlusion_suite.gd`, and the
   scenery, climb-arrow, aquatic, wildlife and petal `_retirement.tscn` scenes.
-- [ ] **SN2 — Preferences and field fog:** `scripts/control_preferences.gd` checks
-  `has_section_key("presentation", "low_power")` before `ConfigFile.get_value` with
-  a `null` default and keeps `lookSens` clamp/persistence in `tests/mobile_suite.gd`.
-  `scripts/audio_preferences.gd` validates bracketed INI section headers before
-  `ConfigFile.parse` for `tests/audio_suite.gd` and matches
-  `tests/audio_clip_suite.gd` PCM conversion. Fix the fog vertex failures isolated
-  in `scripts/skill_field_presentation.gd`; retain every authority assertion.
-  Acceptance: those suites plus `tests/fog_geometry.tscn` and
-  `tests/fog_retirement.tscn`.
+- [ ] **SN2 — Preferences:** the `low_power` and INI-header guards have landed,
+  and `tests/fog_geometry.tscn`/`tests/fog_retirement.tscn` pass without a fog change.
+  `tests/mobile_suite.gd` still fails both "lookSens source scalar" checks for
+  `mobileTouchPreferences` case 5: the suite writes `set_value("input","lookSens",null)`,
+  which erases the key in Godot 4.7.2, so `load_save` returns the default 1 instead of
+  the source's clamped 0.4. Owner request: persist a representable stored null
+  (`tests/mobile_suite.gd` fixture preparation, or the `scripts/control_preferences.gd`
+  save format). Acceptance: `mobile_suite` with zero failures and no engine errors.
+  `tests/audio_suite.gd`'s remaining "centered synthesis layer" volume check is a
+  Sol audio item, not SN2.
 - [ ] **SN6 — Cast effects:** add the original consumer to
   `scripts/combat_effects.gd` for the public `character`, `side`, `slot`, `fx`,
   `point`, `radius`, `duration`, `level`, `fraction`, `carrier`, `origin` and
@@ -61,20 +62,13 @@ Isolate one suite with
   assertions. `scripts/civilian_body_builder.gd` unsets `owner` before reparenting
   template nodes in `configure`. Acceptance: all three suites with bounded memory,
   and `tests/snapshot_suite.gd` without inconsistent-owner warnings.
-- [ ] **SN7 — Shared fixture corrections:** `tools/fixture_json.mjs::writeSourceFile`
-  gives each invocation a unique temporary identity and removes only files it
-  opened; fixed-clock concurrent writes must not delete a sibling's staging file.
-  `tests/aquatic_render.gd`, `tests/death_render.gd`, `tests/minimap_fog_render.gd`
-  and `tests/splat_render.gd` pass explicit section arrays to
-  `Content.read_json("res://data/fixtures.json", ...)`; record the resulting consumer
-  refresh for O25. `tests/campaign_suite.gd::dialogue_lifecycle` advances a
-  controlled wall clock: an early signal must not advance the line and the deadline
-  advances it once. `tests/death_sequence_suite.gd::run` breaks its lambda cycle
-  without weakening `_lifecycle`. `tests/raster_compare.gd` compares exact bytes,
-  keeping premultiplied semantics. Acceptance: the full text of each request
-  (search "Opus — source publisher temporary ownership", "shared campaign dialogue
-  deadline fixture", "shared death integration fixture cleanup" and "raster
-  comparator byte boundary" in the Sol and Terra backlogs).
+- [ ] **SN7 — Shared fixture corrections:** the section arrays, dialogue clock,
+  death-sequence cycle and exact-byte raster comparator have landed. The
+  `tools/fixture_json.mjs::writeSourceFile` unique-staging fix is held for O25
+  (86 `tests/fixtures/*.json` captures pin the current bytes; see that item).
+  Remaining: compare `tests/{aquatic,death,splat}_render.tscn` before and after
+  the comparator change on one renderer (Compatibility/llvmpipe gave 6/6, 3/6 and
+  4/6 failing cases) and record which failures are pre-existing.
 
 ## Generated content
 

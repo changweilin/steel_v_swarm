@@ -66,9 +66,9 @@ Isolate one suite with
   death-sequence cycle and exact-byte raster comparator have landed. The
   `tools/fixture_json.mjs::writeSourceFile` unique-staging fix is held for O25
   (86 `tests/fixtures/*.json` captures pin the current bytes; see that item).
-  Remaining: compare `tests/{aquatic,death,splat}_render.tscn` before and after
-  the comparator change on one renderer (Compatibility/llvmpipe gave 6/6, 3/6 and
-  4/6 failing cases) and record which failures are pre-existing.
+  On Compatibility/llvmpipe, `tests/{aquatic,death,splat}_render.tscn` fail 6/6,
+  3/6 and 4/6 cases with the new comparator, versus 6/6, 3/6 and 6/6 before it.
+  Those raster failures belong to their render owners, not SN7.
 
 ## Generated content
 

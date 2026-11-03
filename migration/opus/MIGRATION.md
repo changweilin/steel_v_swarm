@@ -338,12 +338,16 @@ Accepted contracts awaiting their consumers:
   A case that aborts before freeing its match leaks that world into later cases.
   Campaign deployment still requires authored chapter terrain. Pull failures
   reported by SN9; presentation failures cannot certify populated traversal or
-  field interactions. CI's `tools/export_web.ps1` `fixtures` step runs
-  `tests/run.tscn` headless. The dummy renderer drops per-instance MultiMesh
-  writes, so `MultiMeshCopy.of` reads an empty buffer and `aquatic_suite` reports
-  42030 failures. Under `xvfb-run -a godot --rendering-driver opengl3` it passes
-  196337 assertions with no errors. Run renderer-dependent suites on a real driver
-  in CI rather than weakening them.
+  field interactions. CI's `tools/export_web.ps1` `fixtures` step now runs
+  `tests/run.tscn` on `opengl3_angle`; the headless dummy renderer dropped
+  MultiMesh and texture data. On Linux `xvfb-run` + `opengl3` (llvmpipe) at main
+  `234abb7c`, texture, wildlife, petal, aquatic and marine pass, and 194 failures
+  remain: `berlin_1_summer.res` is absent from Git (10 core, 3 structure,
+  1 room-loading cases), 24 campaign story terrains, the `body_suite` budget
+  (SN4), 2 `mobile_suite` `lookSens`, and 153 `audio_suite` checks (83 synthesis
+  stem provenance, 14 native PCM bytes, 44 gain envelopes, 4 music). The audio
+  checks still need a Windows confirmation. `burst_suite:108` also raises a
+  script error (SN4).
 - [ ] **O24 — Delivery:** certify native exports, mobile sensors/safe areas,
   Compatibility rendering, memory/performance, threaded audio on Web, browser
   single-player, Pages artifact contents and production native hosting. Complete

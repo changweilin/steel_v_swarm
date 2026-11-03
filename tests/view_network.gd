@@ -23,7 +23,8 @@ func _ready() -> void:
 	network_test = false
 
 func _physics_process(delta: float) -> void:
-	elapsed += delta
+	if Session.launch_announced:
+		elapsed += delta
 	if elapsed > 18:
 		push_error("NETWORK_VIEW_TIMEOUT phase=%d target=%d accepted=%s" % [phase, view_lock.target, accepted])
 		get_tree().quit(1)
@@ -92,7 +93,7 @@ func _server_step() -> void:
 			_fail("View assistance must send only ordinary pose input and retain authority resources/weapon lock")
 			return
 		phase = 1
-		_accept_view_input.rpc_id(fixture_pilot.peer_id)
+		_accept_view_input.rpc_id(Session.seats.transport_for(fixture_pilot.peer_id))
 
 func _resources() -> Array:
 	return [fixture_pilot.hp, fixture_pilot.shield, fixture_pilot.power, fixture_pilot.money,

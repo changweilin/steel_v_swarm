@@ -46,13 +46,11 @@ Isolate one suite with
 
 ## Test fixtures
 
-- [ ] **SN3 — Network clocks:** the body, burst, camera, cockpit, death, footprint,
-  mobile, projectile-visual, TPS and view `tests/*_network.gd` clocks start at scene
-  start; authored world loading outlasts their 15-18 s limits. Count from
-  `Session.launch_announced` as `tests/blast_network.gd` does. In
-  `tests/death_network.gd`, compare and send through `Session.seats.player_for` and
-  `transport_for`, because `peer_id` is a seat and `rpc_id` takes a transport.
-  Acceptance: each script parses and passes its transport case in SN9.
+- [ ] **SN3 — Network clocks:** the ten `tests/*_network.gd` clocks now count only
+  after `Session.launch_announced`, and seat/transport routing goes through
+  `Session.seats.player_for`/`transport_for` in the death, mobile, TPS and view
+  scripts. All ten scenes parse cleanly. Acceptance: each passes its transport case
+  in SN9; the death pair currently stops at the missing seasonal world.
 - [ ] **SN4 — Model suites:** `tests/body_suite.gd` and
   `tests/civilian_body_suite.gd` consume cases incrementally through
   `Content.read_fixture_part(key, index)`, retaining every row, nested frame

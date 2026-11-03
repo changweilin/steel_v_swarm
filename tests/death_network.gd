@@ -15,7 +15,8 @@ func _ready() -> void:
 	network_test = false
 
 func _physics_process(delta: float) -> void:
-	elapsed += delta
+	if Session.launch_announced:
+		elapsed += delta
 	if elapsed > 18:
 		_fail("NETWORK_DEATH_TIMEOUT stage=%d" % fixture_stage)
 		return
@@ -86,7 +87,7 @@ func _physics_process(delta: float) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _kill_fixture() -> void:
-	if not Session.dedicated or fixture_peer == 0 or multiplayer.get_remote_sender_id() != fixture_peer:
+	if not Session.dedicated or fixture_peer == 0 or Session.seats.player_for(multiplayer.get_remote_sender_id()) != fixture_peer:
 		return
 	var pilot: BattleUnit = simulation.pilots[fixture_peer]
 	pilot.status.erase("inv_until")
@@ -98,7 +99,7 @@ func _kill_fixture() -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _respawn_fixture(final: bool) -> void:
-	if not Session.dedicated or fixture_peer == 0 or multiplayer.get_remote_sender_id() != fixture_peer:
+	if not Session.dedicated or fixture_peer == 0 or Session.seats.player_for(multiplayer.get_remote_sender_id()) != fixture_peer:
 		return
 	var pilot: BattleUnit = simulation.pilots[fixture_peer]
 	if _resources(pilot) != frozen_resources:

@@ -43,7 +43,8 @@ func _receive_state(packet: Dictionary) -> void:
 	super._receive_state(packet)
 
 func _physics_process(delta: float) -> void:
-	elapsed += delta
+	if Session.launch_announced:
+		elapsed += delta
 	if elapsed > 18:
 		_fail("NETWORK_BODY_TIMEOUT")
 		return

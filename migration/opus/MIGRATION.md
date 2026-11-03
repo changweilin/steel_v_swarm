@@ -248,6 +248,12 @@ contracts to D, and `scripts/main.gd` or `project.godot` contracts to E.
   not. Under Compatibility/llvmpipe (`xvfb-run`, `--rendering-driver opengl3`) the
   wildlife, wildlife-density, petal, aquatic, climb and view-occlusion suites have
   zero failures. Run the root suite on a renderer before reading those counts.
+  On that renderer the current root suite has 43 failures. 38 are missing seasonal
+  or campaign worlds (core populated cases, structure, room loading, burst
+  integration, campaign deployment). The rest are the `mobile_suite` stored null
+  (SN2), the `audio_suite` centered-synthesis volume check (Sol), and the
+  `body_suite` budget (SN4). Burst poses also log missing
+  `assets/bodies/steel_s01`-`s12.scn` (Models).
   Pull exact cross-owner interface requests,
   regenerate required content once, then run the full current fixture suite,
   populated runtime/render/lifecycle checks and both transports. Audit true

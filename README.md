@@ -39,8 +39,8 @@ Python and Playwright are development/test dependencies only.
 
 **Current delivery blocker:** the complete seasonal world set and remaining
 gameplay/render/transport/export acceptance are unfinished. Use the stable
-[migration router](MIGRATION.md) to select the independent Flash, Sol, Opus or
-Models backlog and its instructions. Component checks do not establish full
+[migration router](MIGRATION.md) to select the Claude Sonnet or Opus workstream,
+then one of its lane backlogs. Component checks do not establish full
 feature parity; completed checkpoints are not retained in the backlogs.
 
 **Full feature parity is the staged acceptance target; the port is incomplete.**

@@ -1,17 +1,18 @@
-# Bounded visual consumers — outstanding work
+# View lane — outstanding work
 
-Read [AGENTS.md](AGENTS.md). The root router assigns S12-S14 and S20 to Terra;
-IDs and existing evidence paths are retained. Work one bounded fixture-backed
-change at a time. These acceptance inventories do not authorize a whole-system
-rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
+Read [AGENTS.md](AGENTS.md). This lane owns view/scope, minimap, PiP, campaign
+presentation and the bounded UI allowlist (S12-S14, S20, F4). IDs and existing
+evidence paths, including `artifacts/terra/`, are retained. Work one bounded
+fixture-backed change at a time. These acceptance inventories do not authorize a
+whole-system rewrite or edits to producer APIs; escalate as Sonnet AGENTS says.
 
 ## View, scope, minimap and PiP
 
 - [ ] **S12 — View/scope/observer:** certify FPV/TPS/spectator camera state,
   source clipping/ring order, recoil composition, view-lock acquisition/cycling,
   previous-rendered projection, scope gradients/fog/blur/FOV easing and freeze/
-  death/respawn transitions. Preserve source unknown observer resources. Models
-  owns occlusion/rig geometry; Opus owns authority heading, acknowledgements and
+  death/respawn transitions. Preserve source unknown observer resources. The model
+  lane owns occlusion geometry and Opus lane F owns rigs; Opus owns authority heading, acknowledgements and
   populated LOS/target contract changes.
   Fog opacity must retain the original CSS ease-out curve and reversal-shortened
   durations, including repeated reversals, unchanged targets and zero-progress
@@ -896,6 +897,21 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   qualify native typography or source line wrapping. Bind the Theme only after
   the shared advance contract below is accepted for the relevant text consumer.
 
+- [ ] **F4 — Settlement transcript host:** own `scripts/campaign_ui.gd::show_result`
+  and dedicated `tests/flash_settlement_host.gd`/`.tscn` plus companions after
+  dependencies are accepted. Preserve source host width, outer overflow,
+  title/statistics/buttons and the inner script's 42vh cap; background portraits
+  must not enter text flow. Read `scripts/campaign_dialogue.gd` and
+  `tests/fixtures/dialogue_layout.json` only for this task. The capture populates
+  only `overTalk`, so it cannot certify complete winner/statistics/host layout.
+  Before implementation, require accepted Opus font advances and portrait/frame
+  materials, S20's matching inner-dialogue binding, and a dedicated original
+  populated settlement capture. A host-only capture follows this lane; shared
+  capture helpers/publication remain Opus-owned. Acceptance: populated
+  victory/defeat and replay at 360/720/721/1440 px widths, including nested nearest
+  scrolling and repeated replay/cleanup. Do not patch inner dialogue, fonts or
+  shaders locally. Runtime edits add both transports with `-Campaign`.
+
 ## Integration and handoffs
 
 - **Opus — player FOV projection boundary:** agree a source-faithful camera
@@ -915,13 +931,13 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   `artifacts/terra/fov-projection-sequence.log`. Acceptance: compare the actual
   Chromium Three.js projection and native render/previous-frame projection over
   zoom, reversal, viewport/aspect and near/far cases, without widening tolerances;
-  retain view-lock ordering and authority boundaries. Terra binds an accepted
+  retain view-lock ordering and authority boundaries. This lane binds an accepted
   projection contract separately. The controlled matrix comparison is not a
   populated view-lock or pixel test.
 
 - **Opus — bunker snapshot coordinate precision:** define a recipient-visible
   scalar-double bunker coordinate contract in `scripts/unit.gd::snapshot`,
-  `scripts/actor_snapshot.gd::project` and `scripts/simulation.gd` before Terra
+  `scripts/actor_snapshot.gd::project` and `scripts/simulation.gd` before this lane
   binds it in `scripts/minimap.gd::accept_snapshot`. The current snapshot
   publishes `global_position` as Vector3, which rounds source coordinates before
   the original `Math.round` deduplication and persistent marker storage. Preserve
@@ -930,10 +946,10 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   manufacture precision from an already-rounded Vector3. Acceptance: the source
   boundary cases in `tests/minimap_bunker_precision.tscn` pass through the real
   offline, ENet and WebSocket publication path, including replacement, memory
-  persistence and match reset. Terra then wires the agreed fields separately.
+  persistence and match reset. This lane then wires the agreed fields separately.
 
-- **Flash — death-page inset host:** expose an actual death-page frame and its
-  effective visibility through `scripts/native_ui.gd` for a future Terra-owned
+- [ ] **Death-page inset host:** expose an actual death-page frame and its
+  effective visibility through `scripts/native_ui.gd` for a future view-lane
   frontline inset. Preserve the original `#deadCam` bounds, 16:9 aspect, 2 px
   border, desktop/touch width rules, caption, overlay stacking and the existing
   countdown/respawn lifecycle. Acceptance: original browser geometry and native
@@ -942,7 +958,7 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   Do not display a generic or empty replacement while its camera is unavailable.
 - **Opus — frontline inset publication:** define the recipient-view contract in
   `scripts/main.gd`, `scripts/simulation.gd` and, if needed,
-  `scripts/actor_snapshot.gd` for the Terra death-view consumer. Publish the
+  `scripts/actor_snapshot.gd` for this lane's death-view consumer. Publish the
   original enemy-base world coordinates as scalar doubles, snapshot-ordered actor identity, kind,
   side, death state, model availability/position and measured top height, plus
   death-sequence/game-over/respawn gates and the death position/terrain query.
@@ -950,13 +966,8 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   do not substitute live authority-only entities. Acceptance: original tower,
   base and no-source fallbacks plus death, respawn and game-over transitions
   agree offline and over ENet/WebSocket before binding `PipDeathState.source`
-  and a Terra-owned camera/render consumer. The exact browser distance and
+  and a view-lane camera/render consumer. The exact browser distance and
   camera orientation contracts below still apply to its pose.
-
-- **Flash — cinematic chapter return label:** tracked in
-  [F2](../flash/MIGRATION.md#ready-for-bounded-implementation). Terra retains
-  `CampaignCinematic.play()` and its source-derived default/override contract;
-  the caller correction requires no Terra producer or shared-label change.
 
 - **Opus — shared campaign dialogue deadline fixture:** update
   `tests/campaign_suite.gd::dialogue_lifecycle` to advance a controlled wall
@@ -972,7 +983,7 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
 - **Opus — PiP recipient snapshot lifetime:** define the recipient presentation
   boundary in `scripts/simulation.gd::apply_presentation_view`,
   `scripts/unit.gd` and, if needed, `scripts/main.gd::_receive_state`, before
-  Terra binds `scripts/pip_view.gd` to it. The original client selects from its
+  this lane binds `scripts/pip_view.gd` to it. The original client selects from its
   received entity map and updates a decoy's lost flag only on receipt. The native
   authority instead exposes live `units` and `special`; new units default to
   `presentation_visible = true`, and a removed carrier is erased and queued
@@ -990,14 +1001,14 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   from player `spawn_slot`. `scripts/pip_view.gd` currently hardcodes every index
   to zero: `tests/pip_squad_order.tscn` retains five failures when controlled
   source rows have distinct indices, although `PipViewState.sources` sorts them
-  correctly. After the producer contract is agreed, Terra must feed the test's
+  correctly. After the producer contract is agreed, this lane must feed the test's
   captured indices through that real publication path and bind the view to it.
   Acceptance includes all seven source order cases, default zero, equal-index
   stability, low-power limits and snapshot replacement before populated delivery.
 
 - **Opus — responsive root window:** establish a shared full-client-area and
   pixel-ratio contract in `project.godot` and `scripts/main.gd::_build_ui` before
-  Terra retargets the `PipView` window coordinates. The current canvas-items
+  this lane retargets the `PipView` window coordinates. The current canvas-items
   stretch fixes the visible viewport at 1440×900 and letterboxes other aspect
   ratios. With a real 320×568 window at display scale 1, the original Chromium
   PiP border bounds are `[10, 56, 58, 37]` pixels, while native bounds are
@@ -1016,7 +1027,7 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
 
 - **Opus — shared player camera and body heading:** agree an authority/presentation
   contract for `scripts/simulation.gd::camera_origin_at`/`third_person_camera`
-  and `scripts/unit.gd::advance_player_view` before Terra changes
+  and `scripts/unit.gd::advance_player_view` before this lane changes
   `scripts/camera_pose.gd::third_person_anchor` or
   `scripts/player_view_state.gd::advance_body`. The same helpers feed both the
   displayed camera/body and authority view origins, muzzle targeting, blast
@@ -1029,11 +1040,11 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   threshold in both directions. Acceptance: preserve authority settlement and
   visibility while defining which side owns these boundaries, then pass both
   strict source fixtures, the player-view suite and populated TPS ENet/WebSocket
-  cases. Terra binds an accepted presentation contract in a separate change;
+  cases. This lane binds an accepted presentation contract in a separate change;
   the controlled fixtures cannot establish upstream precision or populated worlds.
 
-- **Sol — camera obstruction hit distance:** agree a source-faithful segment-hit
-  contract for `scripts/world.gd::obstruction_hit` before Terra changes the
+- **Presentation lane — camera obstruction hit distance:** agree a source-faithful segment-hit
+  contract for `scripts/world.gd::obstruction_hit` before this lane changes the
   collision binding in `scripts/spectator_camera.gd` and
   `scripts/camera_pose.gd`. The original `_blockerHitT` returns a scalar hit
   distance from the double-precision segment; the existing world API returns a
@@ -1048,9 +1059,9 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   for the original double endpoints, pass the strict captured and additional
   boundary cases without fabricated distances or wider tolerances, then verify
   actual world obstruction, terrain and player/spectator camera integration.
-  Terra binds the accepted producer contract in a separate change.
+  This lane binds the accepted producer contract in a separate change.
 
-- **Models — source camera quaternion composition:** provide a double-preserving
+- **Opus lane F — source camera quaternion composition:** provide a double-preserving
   yaw-to-basis contract in `scripts/source_quaternion.gd` for consumers including
   `PipView`. Original Three.js composes its camera matrix from double quaternion
   components before Float32 matrix storage; `SourceQuaternion.axis_angle` and
@@ -1066,7 +1077,7 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   existing model and spectator APIs. The required browser sine/cosine and native
   camera-transform contracts remain Opus-owned below. After those are accepted,
   `tests/pip_orientation.tscn` must also pass through the actual PiP camera.
-  Terra binds the accepted API separately.
+  This lane binds the accepted API separately.
 - **Opus — PiP camera-transform boundary:** investigate a native camera binding
   in `scripts/source_camera_transform.gd` if an adapter is needed, preserving
   the original Three.js camera world and inverse transform in the existing
@@ -1090,10 +1101,10 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   `artifacts/terra/pip-orientation-report.json`. This CPU comparison does not
   certify GPU uniforms or scene pixels. Acceptance: the original world and
   view-matrix rotation and translation cases pass `tests/pip_orientation.tscn`
-  through the actual PiP camera after the Models quaternion and browser trig contracts,
+  through the actual PiP camera after the lane F quaternion and browser trig contracts,
   with no wider tolerance, plus real-driver PiP source-pixel comparisons.
 - **Opus — browser pulse sine:** provide an accepted shared binding in
-  `scripts/source_trigonometry.gd` for original browser `Math.sin` before Terra
+  `scripts/source_trigonometry.gd` for original browser `Math.sin` before this lane
   certifies bit-identical lock-glow scalar states. `tests/fixtures/lock_glow.json`
   retains original Node and Chromium constructor/callback outputs, runtime
   identities, pulse inputs and sine bits. Current native phase bits agree, but
@@ -1114,7 +1125,7 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
 - **Opus — spectator angle transfer:** `scripts/main.gd::_advance_spectator`
   packs double `yaw`/`pitch` into `Vector2` before calling
   `SpectatorCamera.advance`, then unpacks its Float32 `Vector2` result. Agree a
-  double-preserving producer/consumer contract with Terra before changing the
+  double-preserving producer/consumer contract with this lane before changing the
   camera API; the native pose writer cannot recover precision already discarded
   by this boundary. Preserve the source unbounded yaw and input increments, not
   a wrapped/canonicalized Euler substitute. Acceptance: repeated sub-Float32
@@ -1123,7 +1134,7 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   behavior. Authority heading and gameplay settlement remain unchanged.
 - **Opus — player look and view-lock angle transfer:** agree a double-preserving
   contract across `scripts/main.gd::_look`/`_advance_view`,
-  `scripts/input_rules.gd::look` and Terra's `ViewLockState.advance`. The current
+  `scripts/input_rules.gd::look` and this lane's `ViewLockState.advance`. The current
   `Vector2` arguments and results quantize base angles and lock increments;
   even the frozen branch rewrites angles. The original `_applyLook` retains
   1024.251199999997 after forty 0.00003-radian steps from 1024.25, while native
@@ -1135,7 +1146,7 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   provenance mismatch still gates published captures. Acceptance: original
   free-look and lock sequences retain unbounded yaw, sub-Float32 increments,
   strict frozen no-op, pitch limits, inversion, recoil and previous-rendered
-  projection across FPV/TPS; do not alter authority settlement. Terra updates
+  projection across FPV/TPS; do not alter authority settlement. This lane updates
   its consumer separately after the producer contract is accepted.
 - **Opus — view-lock scalar distance:** publish an accepted browser
   `Math.hypot(x, z)` binding in `scripts/source_numeric.gd`, checking the existing
@@ -1150,8 +1161,8 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   shared adapter matches original Chromium two-argument results across source
   coordinates, zero, subnormal and non-finite inputs without tables or wider
   tolerances. Include `tests/pip_death_direction.tscn` for both death-view
-  target branches and further source cases before Terra binds this consumer.
-  Terra then keeps subtraction in scalar doubles and validates both axes before
+  target branches and further source cases before this lane binds this consumer.
+  This lane then keeps subtraction in scalar doubles and validates both axes before
   native storage with the original view-lock program.
 - **Opus — minimap shadow distance:** include `scripts/minimap_vision.gd::shadows`
   in the shared two-argument browser `Math.hypot` acceptance above. With the
@@ -1161,14 +1172,14 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   `1.204335586632349` and draws a shadow; the current square-root calculation
   equals the blocker radius and rejects it. `tests/minimap_shadow_boundary.tscn`
   retains the failing boundary and six control cases. Acceptance: the shared
-  adapter matches the source across inside, range and angular boundaries; Terra
+  adapter matches the source across inside, range and angular boundaries; this lane
   binds it separately and validates this scene, ordered shadow caps and fog
   composition without changing blocker-query semantics or raster tolerances.
 ### Shared-owner contracts required for presentation
 
 - **Opus — minimap monotonic clock precision:** change the minimap draw timestamp
   producer in `scripts/main.gd` to preserve a shared monotonic sub-millisecond
-  clock before Terra changes `scripts/minimap.gd::configure` and
+  clock before this lane changes `scripts/minimap.gd::configure` and
   `accept_snapshot` to use that same clock for warmup and pulse deadlines.
   Both currently use `Time.get_ticks_msec()` divided by 1000; rounding them
   independently would mix deadline domains. In the original browser, init at
@@ -1217,12 +1228,11 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   and `tests/scope_raster.tscn` must also accept the shared identity. The narrower
   cancellation oracle cannot substitute for these checks or certify populated
   delivery.
-- **Flash — settlement transcript host:** tracked as blocked
-  [F4](../flash/MIGRATION.md#blocked-on-accepted-producer-contracts). Terra keeps
-  the inner dialogue geometry, 42vh cap, portrait slots and scrolling contract;
+- **Settlement transcript host:** tracked as blocked [F4](#campaign-presentation).
+  This lane keeps the inner dialogue geometry, 42vh cap, portrait slots and scrolling contract;
   accepted font/material bindings below remain prerequisites for full host pixels.
 - **Opus — source text advances:** provide an accepted shared adapter in
-  `scripts/source_font_metrics.gd` before Terra certifies source dialogue wrapping.
+  `scripts/source_font_metrics.gd` before this lane certifies source dialogue wrapping.
   Input is the published native Font, original text, pixel size and `zh-Hant`
   language; preserve original shaping/kerning and the captured CSS weight.
   The strict browser widths are in `tests/fixtures/dialogue_fonts.json`, and
@@ -1232,7 +1242,7 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   using native MSDF did not establish parity. Acceptance needs the complete
   source corpus, Latin/CJK/punctuation, both weights and all recorded sizes,
   without arbitrary spacing corrections, tolerance widening or a baked table of
-  whole-string widths. Terra owns subsequent Label/row layout and pixel binding.
+  whole-string widths. This lane owns subsequent Label/row layout and pixel binding.
 - **Opus — cinematic hint font metrics:** extend the accepted
   `scripts/source_font_metrics.gd` contract to the skip hint consumed by
   `scripts/campaign_cinematic.gd`. The source requests 12 px `Consolas`,
@@ -1242,7 +1252,7 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   the pending and ready strings and both badge labels in
   `tests/fixtures/campaign_hint_badges.json` match source measurements at the
   three captured widths plus fractional widths and DPI cases without spacing
-  retuning or whole-string lookup tables. Terra then implements and verifies the
+  retuning or whole-string lookup tables. This lane then implements and verifies the
   two badge controls, reentrant status changes and full hint composition.
 - **Opus — transcript portrait matte and avatar frames:** agree accepted native
   bindings under `shaders/` for original `.dlg-art` and `.dlg-av` pixels before
@@ -1256,13 +1266,13 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   populated pixels are in `tests/fixtures/dialogue_layout.json`; acceptance
   needs isolated material probes in both art modes, alpha-gradient endpoints,
   fractional placement and the complete native/source transcript composition
-  after Terra publishes the captured fonts and container geometry.
+  after this lane publishes the captured fonts and container geometry.
 - **Opus — radio portrait filter binding:** agree an isolated canvas-item shader
   contract under `shaders/` for the original `.dlg-row .dlg-av` grayscale filter.
   Source inactive portraits use opacity 0.35 and grayscale 0.75; `.on` uses opacity
   1 and no filter, with both channels transitioning for 0.18s ease-out. Native
   `CampaignDialogue` now retains the source opacity transition but has no grayscale.
-  Preserve original portrait pixels/alpha and shared texture immutability; Terra
+  Preserve original portrait pixels/alpha and shared texture immutability; this lane
   binds the accepted material and complete transitions in a separate change.
   Acceptance: original CSS/native portraits at both endpoints, transition and
   reversal frames, across character/mech modes and guest/single-speaker cases.
@@ -1302,12 +1312,12 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   strict original rasters plus fractional scaling, mismatched aspect ratios,
   alpha edges and independently loaded images pass without wider tolerances or
   case-specific images; then validate both layers before backdrop filtering,
-  decoded story art and full cinematic composition. Terra binds the accepted
+  decoded story art and full cinematic composition. This lane binds the accepted
   renderer in a separate change.
 
 - **Opus — source scrollbar geometry and input:** agree a shared native binding
   in `scripts/source_scrollbar.gd`, with a material under `shaders/` if needed,
-  before Terra replaces the default scrollbar in `scripts/campaign_cinematic.gd`.
+  before this lane replaces the default scrollbar in `scripts/campaign_cinematic.gd`.
   The captured classic browser scrollbar has a 4 px transparent track and a
   2 px radius thumb in `rgba(95,208,242,0.25)`; native currently reserves 8 px.
   At 320×100 with overflow, source content is 316 px wide and native is 312 px.
@@ -1331,7 +1341,7 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   Acceptance includes small movements, cancellation and multi-touch on real devices, the
   controlled source/native event programs, all seventeen scrollbar cases and
   additional fractional-size and DPI cases without wider tolerance or per-case
-  baked images. Terra then binds the accepted adapter and
+  baked images. This lane then binds the accepted adapter and
   checks the edge mask, populated narrative, scrolling and complete composition.
 
 - **Opus — cinematic section dashed border:** agree a native material or
@@ -1349,7 +1359,7 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   and place the line within the section's isolated opacity group before scroll
   clipping and the outer presentation fade. Acceptance: Opus validates all five
   original rasters and further fractional-width and DPI cases without wider
-  tolerance or per-size baked images. Terra then binds the agreed renderer and
+  tolerance or per-size baked images. This lane then binds the agreed renderer and
   checks `tests/campaign_section_border.tscn`, scrolling and full composition.
 
 - **Opus — cinematic crawl edge mask:** publish an accepted binding in
@@ -1368,7 +1378,7 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   premultiplied RGBA; scale both RGB and alpha by the original mask. Preserve
   scrolling and the outer presentation fade. Acceptance: Opus validates its
   material against the three enabled source rasters and additional fractional-size
-  cases without wider tolerances or baked per-size images. Terra then binds the
+  cases without wider tolerances or baked per-size images. This lane then binds the
   agreed material, adapts `tests/campaign_crawl_mask.tscn` to disable that binding
   for its unmasked controls, and checks all six rasters, visible scrollbars,
   populated text, touch scrolling and complete cinematic composition.
@@ -1403,7 +1413,7 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   `tests/campaign_sysbar.tscn`. Preserve source gradient/border layering,
   premultiplied alpha and the outer cinematic exit fade. Acceptance: all three
   source rasters and additional opacity, fractional-size and nested presentation
-  cases pass without color retuning, per-size images or wider tolerance. Terra
+  cases pass without color retuning, per-size images or wider tolerance. This lane
   binds the accepted renderer and validates text and the complete HUD separately.
 
 - **Opus — minimap lane raster:** agree source-faithful Canvas stroke bindings
@@ -1422,7 +1432,7 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   captured original rasters and additional fractional, grade-transition,
   clipped and zoomed paths pass without wider tolerance or per-path baked
   images, then validate actual map lanes and complete minimap composition.
-  Terra binds the accepted renderer in a separate change.
+  This lane binds the accepted renderer in a separate change.
 
 - **Opus — minimap label font and raster:** agree a source-faithful Canvas text
   binding for `scripts/minimap.gd::_draw_label`, using the shared
@@ -1441,11 +1451,11 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   advances, baseline, text coverage, label color and backdrop geometry. Acceptance:
   all six captured cases and additional Latin/CJK, fractional-size and DPI cases
   pass without widened tolerance or pre-rendered per-label images, followed by
-  the full minimap composition and populated lifecycle checks. Terra binds the
+  the full minimap composition and populated lifecycle checks. This lane binds the
   accepted renderer separately.
 
 - **Opus — minimap marker coverage:** agree native bindings under
-  `shaders/minimap_marker*.gdshader` before Terra replaces the marker drawing in
+  `shaders/minimap_marker*.gdshader` before this lane replaces the marker drawing in
   `scripts/minimap.gd`. The original Canvas2D callback and Chromium PNGs in
   `tests/fixtures/minimap_marker_raster.json` disagree with the native draw calls
   in all twelve controlled cases at the existing four-byte gate: 1,032 pixels
@@ -1461,9 +1471,9 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   `tests/minimap_marker_raster.tscn` passes every captured original raster and
   further rotated/overlap cases without wider tolerances or baked per-case images,
   followed by the complete minimap composition and populated lifecycle tests.
-  Terra binds the accepted shared renderer in a separate change.
+  This lane binds the accepted shared renderer in a separate change.
 - **Opus — cinematic hold stroke coverage:** agree an accepted material in
-  `shaders/cinematic_hold.gdshader` before Terra replaces the native SVG binding in
+  `shaders/cinematic_hold.gdshader` before this lane replaces the native SVG binding in
   `scripts/campaign_hold.gd`. Godot's native SVG raster retains the original
   geometry, dash targets and rounded caps but differs from browser coverage in
   the quarter/half/full and translucent-half progress cases by 104/199/372/165
@@ -1475,10 +1485,10 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   original CSS/SVG cases in `tests/campaign_hold_render.tscn` and continuous
   progress/reversal frames, without width/color retuning, a finite baked-progress
   substitute or a looser raster tolerance. Source/native evidence is retained in
-  `build/campaign_hold/`; Terra binds the accepted shared renderer in a separate change.
+  `build/campaign_hold/`; this lane binds the accepted shared renderer in a separate change.
 - **Opus — minimap mask raster contract:** agree source-faithful scratch-mask
   coverage and read/composition materials in `shaders/minimap_*.gdshader` before
-  Terra changes the `MinimapMaskTile`/`MinimapFog` bindings. Native `draw_ellipse`
+  this lane changes the `MinimapMaskTile`/`MinimapFog` bindings. Native `draw_ellipse`
   and antialiased Polygon2D masks retain the source geometry but do not yet match
   original Canvas coverage and persistent source-over accumulation. At the
   unchanged four-byte tolerance, full composite frames 1–4 differ in
@@ -1520,7 +1530,7 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   `radius_vmin` and `scoped` for both layers. `tests/scope_weather_retention.tscn`
   retains four failures across radius changes and scope toggles; the unscoped
   no-toggle fade passes. Preserve independent parameters and the original fade,
-  gradients and ring composition. Acceptance: Terra binds the agreed parameters
+  gradients and ring composition. Acceptance: this lane binds the agreed parameters
   and updates this strict scene to read them, all captured retention programs and
   transition/raster tests pass, and no wider pixel tolerance is used.
 - **Opus — raster comparator byte boundary:** `tests/raster_compare.gd` compares
@@ -1531,7 +1541,7 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   Preserve the two-byte tolerance and transparent premultiplied semantics while
   making the boundary numerically faithful. Acceptance includes exact 0/1/2/3
   byte differences, opaque and transparent buffers, and the source/native raster
-  suites; Terra's witness records do not suppress the current strict failures.
+  suites; this lane's witness records do not suppress the current strict failures.
   Also retain frame 7 of `tests/campaign_art.tscn`: every opaque channel differs
   by at most two bytes, yet the current normalized comparator reports 2,240
   pixels at `0.0078431386500597`. `build/campaign_art/report.json` records zero
@@ -1546,6 +1556,7 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   establish populated delivery or complete pixels.
 - Use process-local `APPDATA=build/terra-user` and
   `LOCALAPPDATA=build/terra-local`; new reports belong in `artifacts/terra/`.
+  F4 uses `build/flash-user`, `build/flash-local` and `artifacts/flash/`.
   Existing `artifacts/sol/` and `build/` evidence is retained at its original path.
   Fixed-output captures, native imports and shared publishers run serially.
   Source tools here require process-local
@@ -1566,13 +1577,14 @@ rewrite or edits to producer APIs. Complex work may use Sol 6.1 in this lane.
   This Chrome reports version 156.0.8078.73, while existing captures may have
   used another version; retain that distinction and the original-source hashes.
   Missing native worlds still block populated runtime/transport acceptance.
-- **Sol — CSS/input/frame dependencies:** consume `scripts/css_transition.gd`,
+- **Presentation lane — CSS/input/frame dependencies:** consume `scripts/css_transition.gd`,
   `scripts/css_decimal.gd`, local input/feedback and world/resource producers
   through their existing APIs. Record a local request before changing a payload,
   wall/game clock, cancellation or resource-ownership contract. Acceptance must
   include affected view and campaign source fixtures and lifecycle cases.
-- **Sol — S21 quality propagation:** Terra owns quality bindings inside its
-  allowlisted consumers. Sol retains `scripts/visual_preferences.gd` and S21
+- **Presentation lane — S21 quality propagation:** this lane owns quality bindings
+  inside its allowlisted consumers. The presentation lane retains
+  `scripts/visual_preferences.gd` and S21
   world/audio/effect propagation. Any changed notification or constructor/live
   boundary requires an agreed producer contract and source preference plus
   affected scope/minimap/PiP/campaign regression cases before consumer wiring.

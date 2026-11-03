@@ -3,8 +3,8 @@
 Read [AGENTS.md](AGENTS.md). Current source metadata, fixture coverage and combined
 runtime acceptance remain incomplete. Component results do not certify the build.
 Publication and fixture commands are in [PUBLICATION.md](PUBLICATION.md); load them
-only for lane A. Bounded fixes that blocked this backlog are in
-[Sonnet](../sonnet/MIGRATION.md).
+only for lane A. Lane F's rig backlog is [models.md](models.md). Presentation,
+view, model-presentation and leased fixes are in [Sonnet](../sonnet/MIGRATION.md).
 
 ## Execution lanes
 
@@ -19,11 +19,13 @@ the other affected lane is idle. Shared publication in A stays single-writer.
 | C — Simulation | O6-O17 | `scripts/simulation.gd`, `scripts/unit.gd`, remaining Opus `scripts/*_rules.gd`, `scripts/*_math.gd` and authority helpers |
 | D — Session and rooms | O18-O22 | `scripts/session.gd`, Opus `scripts/room_*.gd`, `scripts/actor_snapshot.gd`, `scripts/match_recipe.gd`, `scripts/fatal_watchdog.gd` |
 | E — Integration | O23, O24 | `scripts/main.gd`, `scenes/main.tscn`, `project.godot`, export presets, `.github/`, `tests/run.*`, `tests/validation.json`, `tools/test_network.ps1`, `tools/export_web.ps1` |
+| F — Rigs and actor packing | M1, M2, M4-M11 ([models.md](models.md)) | Root rule 2a files, including `scripts/body_*.gd`, `scripts/cockpit_*.gd`, `tools/import_cockpits.gd`/`.tscn` and native actor scene outputs |
 
 ## Unblocking order
 
-O26 comes first: it releases SN8, then every populated case. Sol and Terra keep
-the full requests; find them by searching their backlogs for `**Opus`.
+O26 comes first: it releases SN8, then every populated case. Sonnet lane
+backlogs keep the full requests; find them by searching `migration/sonnet/` for
+`**Opus`. Requests below labelled `**Sonnet` are pulled by that lane.
 
 The accepted source snapshot is `changweilin/steel_vs_swarm` `634fcf23`, read
 from its checkout: `data/provenance.json` pins those exact bytes, including their
@@ -38,7 +40,7 @@ those files, so publish a complete capture only for a source or producer change.
 
 Requests from the published capture:
 
-- **Sol — native audio catalogue:** rerun the audio importers against the
+- **Sonnet presentation — native audio catalogue:** rerun the audio importers against the
   published `data/audio_{clips,synth,move}.json`. Their noise realization and
   Chromium 151 PCM no longer match the catalogue. Acceptance: `audio_suite` returns
   to its one known `_buses` failure (`tests/audio_clip_suite.gd:30` adds 152 more)
@@ -57,7 +59,7 @@ Requests from the published capture:
     finished: `tools/world_references.mjs` on a real `berlin_1_autumn` copy, with
     its captured inputs restored, changes only `collision.deckEndTolerance`,
     `deckProbes` and `deckReferences` and keeps all 99 negative zeros. Remaining is
-    the SN8/Sol handoff. Every bundle pins an older `public/js/charPreview.js`
+    the SN8/presentation-lane handoff. Every bundle pins an older `public/js/charPreview.js`
     than the accepted snapshot (`20051639` or `41be0416`), and current tools change
     the generator fingerprints, so `bake_worlds.mjs --reuse` cannot qualify them:
     each selected bundle needs a full recapture through `tools/migrate_worlds.ps1`,
@@ -68,7 +70,7 @@ Requests from the published capture:
     `source.inputs["public/js/biomes.js"]`. Acceptance: `tests/worlds.tscn --
     --bundle=<bundle>` accepts the regenerated bundle and rejects a copy with
     either field altered.
-  - **O26B accepted; SN8/Sol binds it in `tools/source_world_meshes.gd`,
+  - **O26B accepted; SN8 binds it in `tools/source_world_meshes.gd`,
     `tools/import_worlds.gd` and `tests/worlds.gd`:**
     - Numbers: `SourceFixtureSections.restore_numbers(tree, float64_bytes)` returns
       `{ok, value}` or `{ok: false, error}`, leaving a rejected tree unchanged. Inline
@@ -114,15 +116,15 @@ contracts to D, and `scripts/main.gd` or `project.godot` contracts to E.
 
 Accepted contracts awaiting their consumers:
 
-- **Terra:** `SourceNumeric.hypot(x, y)` matches Chromium 151 `Math.hypot` bits
+- **Sonnet view:** `SourceNumeric.hypot(x, y)` matches Chromium 151 `Math.hypot` bits
   (`tests/source_numeric.tscn`, corpus from `tools/source_numeric_capture.mjs`); bind it
   in `ViewLockState.advance` and `MinimapVision.shadows`. Browser `Math.sin`/`cos` stays
   open: Chromium and Node disagree, so a native binding needs Chromium's own algorithm.
-- **Sol:** a replica's `state_received` fires only for an accepted snapshot; rejected
+- **Sonnet presentation:** a replica's `state_received` fires only for an accepted snapshot; rejected
   packets reach `Session.snapshot_heard`. `control_status.unbalanced` is published.
-- **Sol:** `command.move_mag` carries the stick's double magnitude for `InputRules.moving`.
+- **Sonnet presentation:** `command.move_mag` carries the stick's double magnitude for `InputRules.moving`.
   Relay activation reaches `CombatEffects.spark` from `scripts/main.gd`.
-- **Models/SN4 — civilian surface materials:** `MeshInstance3D` releases a surface override
+- **Sonnet SN4/model lane — civilian surface materials:** `MeshInstance3D` releases a surface override
   before its render instance, so `scripts/civilian_body_builder.gd::_part` keeps each one
   alive in mesh metadata; metadata on the part root is not enough. The user directed this
   one line past the SN4 lease; keep it when SN4 publishes that file.
@@ -165,7 +167,7 @@ Accepted contracts awaiting their consumers:
   Preserve authority lock throttles,
   confirmed-anchor hysteresis, target-dependent ranges, immutable launch frames,
   FNF continuation, direct/fan/line visibility and intentional blast coverage.
-  Mesh/rig changes are Models handoffs; harmless effects are Sol handoffs.
+  Mesh/rig changes go to lane F; harmless effects are Sonnet presentation handoffs.
 - [ ] **O7 — Active abilities/status:** certify cast channels, squared
   interruption fractions, charges/cooldowns, shield/evasion/suppression/critical/
   elemental order, source defensive sectors, healing, phase/reflect and immunity.
@@ -247,7 +249,7 @@ Accepted contracts awaiting their consumers:
   monotonic mode acknowledgement, empty-heavy fallback, recoil/echo/movement
   order, pre-kick launch direction and distinct RNG/resource budgets. Complete
   authoritative heading/camera/muzzle convergence and combined input/cast/
-  purchase timing. Personal/touch/gyro prediction remains a Sol consumer.
+  purchase timing. Personal/touch/gyro prediction remains a Sonnet presentation consumer.
 
 ## Modes and room lifecycle
 
@@ -265,8 +267,8 @@ Accepted contracts awaiting their consumers:
   route separation, bot capacity/selection, ready cancellation, source loaded
   barrier and deferred authority population. Verify live ordinary seat/side edits,
   fixed join mode, unseated vision/input restrictions and no implicit actor
-  replacement. Prebuild consumption and progress/error wiring must use Sol's
-  actual resource state rather than starting simulation early.
+  replacement. Prebuild consumption and progress/error wiring must use the Sonnet
+  presentation lane's actual resource state rather than starting simulation early.
   Positive populated-match acceptance still requires complete authored seasonal
   resources. Certify valid prebuild consumption, structure anchors and exactly-once
   population after all seats load; rejection coverage alone cannot establish this.
@@ -321,7 +323,7 @@ Accepted contracts awaiting their consumers:
   source event/frame order and platform behavior; focused math or storage checks
   cannot substitute for complete match comparison. Resolve new failures before
   calling a path verified. Current `tests/run.tscn` completes on a real GL driver with
-  the `berlin_1` worlds; its 180 failures belong to Sol audio and mobile preferences,
+  the `berlin_1` worlds; its 180 failures belong to Sonnet presentation audio and mobile preferences,
   SN4 body streaming and missing campaign terrain, and `burst_suite` stops at its
   script error. `--smoke` needs SN8's `berlin_swap_5_autumn`. Baseline ENet and WebSocket
   pass with empty error logs when a room rolls a generated world; until SN8 finishes, a

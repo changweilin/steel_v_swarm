@@ -1,9 +1,12 @@
-# Native integration and resource pipelines — outstanding work
+# Presentation lane — outstanding work
 
-Read [AGENTS.md](AGENTS.md). S12-S14/S20 and their consumer handoffs are
-Terra-owned; task IDs remain stable. Written implementations and source captures still
-need current integrated acceptance. Shared shader translation and music envelope
-semantics have separate Opus ownership; actor model construction is Models-owned.
+Read [AGENTS.md](AGENTS.md). This lane owns world/resource pipelines, audio, input
+and combat presentation (S1-S11, S15-S19, S21). S12-S14/S20 and their consumer
+handoffs are in the [view lane](view.md); task IDs remain stable. Written
+implementations and source captures still need current integrated acceptance.
+Shared shader translation and music envelope semantics are Opus-owned; actor rigs
+and packing are Opus lane F, and damage/missile models are the
+[model lane](models.md).
 
 ## Seasonal resources and scenery
 
@@ -195,7 +198,7 @@ semantics have separate Opus ownership; actor model construction is Models-owned
   do not pass inputs through Float32 vectors or sample the styled image. Acceptance:
   exact `constantsLE`, `pointLE` and `projectionLE` words plus the raw-RGB/null/
   undefined probes in `data/world_imagery/*.json`, including pixel edges and alpha
-  validity. Sol binds the accepted helper and raw pixel reader through
+  validity. This lane binds the accepted helper and raw pixel reader through
   `scripts/world.gd`/`tools/import_worlds.gd` in a separate change; retain the current
   imagery rejection until that complete contract is accepted.
 - [ ] **S4 — Animated scenery:** certify trains, articulated pivots, boundary
@@ -483,7 +486,7 @@ The wrapper runs capture, source references and native packing sequentially.
   The registered `tests/audio_suite.gd` centered-layer assertion still compares
   physical WAV volume with logical .35. Retain decoder compensation; the expected
   physical gain is `native_gain(wave, .35)` from the existing
-  `scripts/audio_pcm_gain.gd` helper. Correct this Sol-owned assertion only with
+  `scripts/audio_pcm_gain.gd` helper. Correct this lane's assertion only with
   coordinated Opus republication of its consumer fingerprint in
   `data/fixtures.json`; editing the registered test alone rejects suite loading.
   Acceptance is the same centered bus and compensated physical gain, without a
@@ -801,7 +804,7 @@ godot --headless --audio-driver WASAPI --path . res://tests/audio_pan_render.tsc
 godot --headless --audio-driver WASAPI --path . res://tests/audio_move_render.tscn
 ```
 
-`data/audio_mixer.json` is a dedicated Sol oracle, independent of the shared
+`data/audio_mixer.json` is a dedicated presentation-lane oracle, independent of the shared
 fixture registry. Regenerate it after changing its source captures or generators;
 its tool fingerprints normalize text line endings. Mixer capture covers the
 active device rate; captured reference rates alone do not certify other native
@@ -833,7 +836,7 @@ player's position when pausing/resuming.
   scalar words, native look/axis writes and strict dead-zone/sprint/tap/fire
   decisions. Keep `tests/touch_precision.test.mjs`, numeric-transfer tests and
   `tests/touch_reset.tscn` together. DOM/capture/layout transport probes do not
-  certify physical pointer delivery, Flash-owned node lifetime or mobile exports.
+  certify physical pointer delivery, view-lane node lifetime or mobile exports.
   Native gyro owners configure once and retire terminally on tree exit. Stop the
   retained sensor state, disconnect its look/failure and preference subscriptions,
   and reject queued or late commands. Preserve the stopped state for existing
@@ -855,11 +858,10 @@ player's position when pausing/resuming.
   blocked combinations; real-driver `tests/touch_reset.tscn` checks their event
   order plus directed callback interruption and same-pointer-ID replacement.
   The source DOM/stick-paint probes and native state-only checks do not certify
-  Flash-owned control-node lifetime, hardware pointer capture, complete input
+  view-lane control-node lifetime, hardware pointer capture, complete input
   publication, populated transport behavior or mobile exports.
-  Flash owns the control-wrapper reset correction and node-lifetime acceptance
-  in [F1](../flash/MIGRATION.md#ready-for-bounded-implementation). Keep
-  `TouchState` release/reentry contracts stable while that task is implemented;
+  The view lane owns `scripts/touch_controls.gd` node lifetime. Keep
+  `TouchState` release/reentry contracts stable for that consumer;
   S11 retains hardware input and populated publication/transport acceptance.
   Headless clients have no window event callback, so `Input.parse_input_event`
   never reaches `_input`. `tests/mobile_network.gd` injects through
@@ -931,7 +933,7 @@ scenes before integrated acceptance; neither scene certifies populated snapshots
   across both quality modes. `node tools/destruction_capture.mjs` captures the
   original particle states/textures; `tests/destruction_native.tscn` retains the
   strict native checks (`-- --comic` or `-- --mechanical` selects one family).
-  Body-bound damage/guard materials are a Models contract; event producers are Opus.
+  Body-bound damage/guard materials are a model-lane contract; event producers are Opus.
 - [ ] **S18 — Hit/death screen presentation:** certify hitstop order, damage
   bearings, immutable blood/glint drops, CSS decimal/gradient/blur composition,
   private vitality branches, hurt flash and reset/replay gates. Finish death
@@ -994,7 +996,7 @@ scenes before integrated acceptance; neither scene certifies populated snapshots
   programs plus native admission, damaged-owner and deferred-resource checks.
   Declared source geometry/damage probes do not qualify missile shape, damage
   semantics, complete pixels, ray triangles or populated transport delivery.
-  **Models — `scripts/missile_view_ray.gd`:** reject retired/queued owners before
+  **Model lane — `scripts/missile_view_ray.gd`:** reject retired/queued owners before
   reading global transforms, model nodes or persistent damage geometry. Acceptance:
   ray queries during a reentrant terminal fracture callback, after retirement and
   after tree detachment return no hit without dereferencing released resources.
@@ -1178,14 +1180,6 @@ them. Remove completed items; no dated checkpoints or copied validation history.
   accepts inverted climb routes (`y1 < y0`), which `climb.js` keeps and
   `climb_state.gd` tops out as `game.js` does. Packs reference
   `assets/worlds/shaders/*.gdshaderinc`; a CI matrix entry must also ship it.
-- **Terra — per-part view occlusion for batched buildings
-  (`scripts/view_occlusion.gd`):** source `_registerViewOccluders` fades individual
-  source meshes. Batches carry `noViewOcclusion` meta, so their parts never fade;
-  fading a whole building would substitute different semantics. Required
-  contract: fade members via `source_batch.vertex_starts`/`index_starts` (for
-  example a per-member alpha attribute or split draw ranges) using each member's
-  own bounds. Acceptance: a source building part that occludes the player fades
-  alone while its siblings in the same batch stay opaque.
 - Published `berlin_1_{autumn,spring,summer}` and `berlin_swap_1_summer` now fail
   `verify_world_provenance.mjs`: they declare `public/js/charPreview.js` hash
   `625e956f…`, while source `771e670e` has `756351a1…`. Native resources still
@@ -1213,8 +1207,9 @@ them. Remove completed items; no dated checkpoints or copied validation history.
   and existing tolerance. In `tests/mobile_suite.gd`, write `""` before
   `ConfigFile.save` when `mobileTouchPreferences` carries `lookSens: null` so
   `ConfigFile.set_value` does not erase the key before `ControlPreferences.normalize`
-  clamps `Number(null)` to `0.4`. Apply both Sol test edits together with Opus's
-  `refreshFixtureConsumers` update to `data/fixtures.json`.
+  clamps `Number(null)` to `0.4`. Both test edits belong to this lane; land them
+  together with Opus lane A's `refreshFixtureConsumers` update to
+  `data/fixtures.json`, because an edited registered test alone rejects suite loading.
 - **Opus — snapshot backpressure (`scripts/session.gd::_broadcast_state`):** every
   peer receives a 66 KB full snapshot at 8 Hz regardless of what it has drained.
   A populated headless Berlin client (236,084 `MeshInstance3D`) runs at 5-7 FPS,
@@ -1246,13 +1241,13 @@ them. Remove completed items; no dated checkpoints or copied validation history.
   before sampling chunk parameters. The first normal/small case consumes 73
   draws versus native `MechanicalDebris`'s 49, shifting the first scale from
   source `0.5774999856948853` to native `0.498750001192093` and later motion.
-  Publish source-derived allocation/effect draw separation for Sol to consume;
+  Publish source-derived allocation/effect draw separation for this lane to consume;
   do not insert unexplained constant RNG burns or silently shift expected data.
   Preserve the distinct explicitly injected random callback used by seeded
   scenery bursts. Acceptance: all default and seeded cases retain their original
   parameters, draw order, bounce/spin/shrink and independent combat RNG streams.
 - **Opus — lossless debris palette binding:** agree the shared cel shader
-  contract in `shaders/` and `scripts/source_cel_*.gd` before Sol changes the
+  contract in `shaders/` and `scripts/source_cel_*.gd` before this lane changes the
   `MechanicalDebris` MultiMesh binding. Current per-instance colors round source
   float32 `0.0930589661002159` to `0.093017578125` on the real OpenGL driver.
   Palette indices are exactly representable, but the accepted shader must resolve
@@ -1265,7 +1260,7 @@ them. Remove completed items; no dated checkpoints or copied validation history.
 
 - **Opus — source CSS inset-shadow raster:** fix the accepted shader contract in
   `shaders/death_rim_mask.gdshader`, `shaders/death_rim_present.gdshader` and the
-  shared `shaders/splat_blur.gdshader` before Sol changes their viewport bindings.
+  shared `shaders/splat_blur.gdshader` before this lane changes their viewport bindings.
   Current original CSS/native comparisons fail the rim cases at 640x360,
   360x640 and 128x128, with 44,308 / 53,001 / 5,837 mismatched pixels and maximum
   premultiplied-channel errors 0.027451 / 0.027451 / 0.023852. Whiteout cases
@@ -1279,12 +1274,12 @@ them. Remove completed items; no dated checkpoints or copied validation history.
   or use an explicitly typed `WeakRef`; retain its `_lifecycle` assertions against
   `scripts/main.gd` and `scripts/unit.gd`. Acceptance: source sequence checks and
   camera ownership/early respawn/reset integration pass with no ObjectDB/resource
-  leaks or engine errors at exit. Sol's source-only `tests/death_native.tscn`
+  leaks or engine errors at exit. This lane's source-only `tests/death_native.tscn`
   avoids that cycle but does not certify the omitted shared lifecycle checks.
 
 ### Shared-owner contracts required for loot frame integration
 
-- **Models/Opus — original water hazard bindings:** preserve original
+- **Opus lanes A/F — original water hazard bindings:** preserve original
   `userData.water`, geometry-parameter presence/nullish radius fields and double
   `source_trs.p` for every immediate source child through
   `tools/model_references.mjs`, `tools/import_cockpits.gd` and the shared import
@@ -1308,7 +1303,7 @@ them. Remove completed items; no dated checkpoints or copied validation history.
   processing loot/airdrop nodes receive raw engine deltas. Original
   `BattleClient` passes its single adjusted `dt` to `_updateLoot` and
   `_updateAirdrop`, alongside continuous local wall time. Agree one main-to-world
-  frame contract so Sol can expose the matching consumers without double-stepping
+  frame contract so this lane can expose the matching consumers without double-stepping
   or introducing another hitstop budget. Acceptance: long stalls retain the
   source delta cap; hitstop freezes spin but wall-clock bob/descent phases retain
   original behavior; snapshot bursts never restart either clock. Keep authority
@@ -1356,17 +1351,17 @@ them. Remove completed items; no dated checkpoints or copied validation history.
   plates share one mesh/material. Preserve Float32 values, single-sided front/
   back geometry, source UV inset and atlas sampling; do not apply one emission
   amount to every plate. Acceptance: mixed zero/nonzero source glow and lit/unlit
-  raster fixtures match before Sol enables the native import path. The importer
+  raster fixtures match before this lane enables the native import path. The importer
   currently rejects active glow instead of silently dropping the attribute.
 
-### Terra boundary contracts
+### View-lane boundary contracts
 
-- **Terra — shared raster comparator dependency:** the unresolved byte-boundary
-  request lives in Terra's backlog and targets Opus-owned `tests/raster_compare.gd`.
-  Sol must retain its campaign-independent raster failures and existing tolerances
-  until Opus accepts that contract; do not duplicate or locally patch the helper.
-- **Sol — presentation producers consumed by Terra:** keep source CSS helpers,
+- **View lane — shared raster comparator dependency:** the unresolved byte-boundary
+  request lives in [view.md](view.md) and targets Opus-owned `tests/raster_compare.gd`.
+  This lane must retain its campaign-independent raster failures and existing
+  tolerances until Opus accepts that contract; do not duplicate or locally patch the helper.
+- **Presentation producers consumed by the view lane:** keep source CSS helpers,
   input/control publications, frame clocks, world queries and resource contracts
-  stable while Terra changes visual consumers. Changes to `scripts/css_transition.gd`
+  stable while the view lane changes visual consumers. Changes to `scripts/css_transition.gd`
   or `scripts/css_decimal.gd` require scope and campaign regression cases as well
   as the direct source oracle. Shared main/session/shader changes remain Opus-owned.

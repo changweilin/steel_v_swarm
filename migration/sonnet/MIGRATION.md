@@ -1,8 +1,19 @@
-# Opus-unblocking fixes — outstanding work
+# Sonnet — outstanding work
 
-Read [AGENTS.md](AGENTS.md). Select one task; its exclusive files are in the root
-lease table. SN4 and SN6 are blocked as recorded. SN8 waits for the colour consumers it records.
-SN9 runs last. Each task records only its current failure.
+Read [AGENTS.md](AGENTS.md), then select one lane and load only its backlog. Lane
+files follow the root ownership rules; an `SN` lease beats them while it lasts.
+
+| Lane | Tasks | Backlog |
+| --- | --- | --- |
+| Leases | SN4, SN6, SN8, SN9 | This file |
+| Presentation | S1-S11, S15-S19, S21 | [presentation.md](presentation.md) |
+| View | S12-S14, S20, F4 | [view.md](view.md) |
+| Model presentation | M3, M12-M15 | [models.md](models.md) |
+
+Lease order: SN4 and SN6 are blocked as recorded. SN8 waits for the colour
+consumers it records. SN9 runs last. Each task records only its current failure.
+Lane tasks blocked on an Opus contract stay open; search the selected lane for
+`**Opus` before starting and skip a task whose prerequisite is unaccepted.
 
 Local tools: process-local `SVS_SOURCE=C:/Users/user/Documents/app/steel_vs_swarm`,
 `PW_CHROME=C:/Users/user/AppData/Local/ms-playwright/chromium-1234/chrome-win64/chrome.exe`
@@ -31,7 +42,7 @@ rejects the fog scenes. On Linux run real-renderer checks as
   (`castparticles.js`) and `spawnAuthoredCast` (`forge/combatCast.js`). A
   `tools/*_references.mjs` importer, its `data/` output and a fixture producer sit
   outside this lease, and the native simulation emits `ability_arrive`, not `atkfx`
-  (`simulation.gd:4440`). Request to Opus/Sol: publish that profile data and its
+  (`simulation.gd:4440`). Request to Opus lane A: publish that profile data and its
   source-based fixture; this lease then adds only the anchor (`casterPos` null →
   report `point`, `groundY` from the caster height) and `carrier` deferral. A generic
   effect stays forbidden.
@@ -51,15 +62,15 @@ rejects the fog scenes. On Linux run real-renderer checks as
   `tools/fixture_sections.mjs::fixtureConsumers` treats any quoted section name as a
   whole-section dependency, so an incremental reader is still preloaded; the scan
   must skip names read through `Content.read_fixture_part` /
-  `Content.fixture_registry`. (2) After that, run `refreshFixtureConsumers` for
-  O25 because the edited suites changed their registered hashes. (3)
+  `Content.fixture_registry`. (2) After that, Opus lane A runs `refreshFixtureConsumers`
+  because the edited suites changed their registered hashes. (3)
   `civilian_body_suite` then fails 4020 outline-width checks with the
   incremental reader: civilian `torso` and `pelvis` shells report `local_width`
   .06904542 / min .00303800 / max .00621409 against .06829454 / .00300496 /
   .00614651. Source semantics of `OutlineRules.local_uniforms` after appearance
   scaling need Opus before `scripts/civilian_body_builder.gd` changes. (4)
   `burst_suite` cannot run until `assets/bodies/steel_s01.scn` (and the other
-  non-kami hero bodies) are published by Models.
+  non-kami hero bodies) are published by Opus lane F.
 
 ## Generated content
 
@@ -82,9 +93,9 @@ rejects the fog scenes. On Linux run real-renderer checks as
   reasons: the dummy renderer cannot read `MultiMesh` instances, and non-`surfaces` entries
   such as `SourceMesh_14` (a `MultiMeshInstance3D`) keep their material in `material_override`,
   which the mesh-surface lookup misses (~265 "cel definitions" failures).
-  Remaining, all outside this lease: (1) Sol: `tests/worlds.gd:106` finds the map entry with
+  Remaining, all outside this lease: (1) Presentation lane: `tests/worlds.gd:106` finds the map entry with
   `entry.id == map_id`, so every `*_swap_*` bundle crashes; resolve `<id>_swap` through
-  `entry.swapped_variants` as `WorldVariant.required` does. (2) Sol/Models: read colours at
+  `entry.swapped_variants` as `WorldVariant.required` does. (2) Presentation and model lanes: read colours at
   `tests/worlds.gd:306-314` from `ARRAY_CUSTOM2` (exact Float32, no 1/255 tolerance), and bind
   `scripts/{scenery_motion,fire_presentation,mine_presentation}.gd` and the tint copy at
   `scripts/scene_damage_geometry.gd:103` to `uSourceAlbedo` (the `ShaderMaterial` breaks their
@@ -100,23 +111,14 @@ rejects the fog scenes. On Linux run real-renderer checks as
   map. Acceptance: `tests/worlds.tscn -- --bundle=<bundle>`, `SMOKE_PASS` and both baseline
   transport cases. Run alone.
 
-## Requests to other owners
+## Cross-lane notes and requests to Opus
 
-- **Sol — `tests/mobile_suite.gd`:** `mobileTouchPreferences` case 5 carries
-  `lookSens: null`, but `ConfigFile.set_value(..., null)` erases the key, so the
-  loader sees an absent key (default 1.0) instead of the source clamp of
-  `Number(null)` (0.4). Write an empty string for a null fixture value before
-  `ConfigFile.save`; `ControlPreferences.normalize` already maps it to the minimum.
-  Acceptance: both `lookSens source scalar` assertions pass with no loader change.
-- **Sol/Opus — `tests/audio_suite.gd::_buses`:** the centered player check still
-  expects the logical gain .35; see the existing `audio_pcm_gain.gd::native_gain`
-  request in the Sol backlog. The only remaining `audio_suite` failure.
-- **Sol — scenery retirement scenes:** `scenery_binding_retirement` and
+- **Presentation lane — scenery retirement scenes:** `scenery_binding_retirement` and
   `scenery_host_retirement` each fail one check, "Current scenery producer:
   data/worlds/berlin_1_autumn.json", a stale world producer hash. It clears with the
   corrected world references and SN8 regeneration.
 
-- **Opus — O25 consumer refresh:** publish `refreshFixtureConsumers` after the
+- **Opus lane A — consumer refresh:** publish `refreshFixtureConsumers` after the
   edited `tests/{campaign,death_sequence,burst,civilian_body}_suite.gd` are accepted;
   their registered hashes are stale. Also unresolved on the shared side:
   `death_sequence_suite` reports 4916 failures (death-camera random order, topple
@@ -124,12 +126,6 @@ rejects the fog scenes. On Linux run real-renderer checks as
   reports only the missing story terrain resources. The raster scenes
   (`aquatic`, `death`, `splat`) mismatch on the software GL renderer and need a
   real GPU run.
-
-- **Models — remaining `MultiMesh.duplicate()` calls:** `scripts/dissolve_binding.gd`,
-  `scripts/mobile_damage_geometry.gd` and `scripts/scene_damage_geometry.gd` still
-  call `batch.multimesh.duplicate()`, which sets the buffer before the instance
-  count in Godot 4.7.2. Use `MultiMeshCopy.of`. Acceptance: their dissolve and
-  damage suites on a real driver with empty engine error output.
 
 ## Integrated reruns
 

@@ -4,8 +4,9 @@
 
 Apply the root ownership rules. Default to Claude Opus for ambiguous source
 semantics, coupled state machines, numeric/shader fidelity and failure-sensitive
-integration. This workstream owns the shared integration surfaces; it does not
-gain permission to edit another workstream's implementation files.
+integration, plus mech rigs, pose order and actor packing (lane F). This
+workstream owns the shared integration surfaces; it does not gain permission to
+edit Sonnet lane or leased files, even when it takes an escalated Sonnet task.
 
 Read this file, then [MIGRATION.md](MIGRATION.md), select one execution lane, then
 read the selected source producer, native consumers and fixtures. Pull only an
@@ -30,6 +31,24 @@ backlog. Commands run from the repository root.
   force acceptance. Unknown shader/audio shapes remain explicitly unavailable.
 - Serialize shared source/fixture publication and registration. Reuse existing
   atomic writers and strict manifests; do not mutate generated data by hand.
+
+## Lane F model contract
+
+- Original source/glTF and derived data are read-only. Change the existing
+  offline builder/export/packer path and regenerate; do not hand-retune graphs,
+  hit cylinders, muzzles, body scales or animations.
+- Use native PackedScene, ArrayMesh, AnimationPlayer, MultiMesh and scene-local
+  resources. Preserve hidden nodes, original hierarchy/IDs, material aliases,
+  emitter references, logical Euler/quaternion state, signed TRS, source pose
+  composition and immutable event identity: distinct same-clock shots advance
+  separately, replaying one event does not.
+- Keep visual meshes, authority collision/aim volumes and owner camera rulers
+  distinct. Authority-body rigs are read-only pose suppliers to simulation. Do not
+  invent rigs for rigless carriers or missing species; unsupported node/material/
+  reference types reject explicitly.
+- Real-renderer packing is mandatory for nonempty MultiMesh content. Pack/reload
+  fresh independent instances and check early-cancel/unrendered release as well as
+  destruction. Never publish over another owner's active capture.
 
 ## Integration and acceptance
 

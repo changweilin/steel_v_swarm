@@ -1,8 +1,9 @@
-# Mech, gameplay NPC and combat-building models — outstanding work
+# Lane F — mech rigs, actor packing and gameplay NPC models
 
-Read [AGENTS.md](AGENTS.md). This fourth workstream is independent of the Flash/
-Sol/Opus difficulty tiers. Packed scenes alone do not certify posed, rendered or
-transported bodies. Imported source/glTF must remain read-only.
+Read [AGENTS.md](AGENTS.md), including its model contract. Civilian assembly,
+markers/LOD/occlusion, damage/removal and missile geometry (M3, M12-M15) are in
+the [Sonnet model lane](../sonnet/models.md). Packed scenes alone do not certify
+posed, rendered or transported bodies. Imported source/glTF must remain read-only.
 
 ## Construction and packing
 
@@ -18,10 +19,6 @@ transported bodies. Imported source/glTF must remain read-only.
   GLES3 material errors on uninitialized release remain a lifecycle risk to test;
   forcing a diagnostic raster pass alone does not certify the game lifecycle.
   Do not add custom cloning or a dummy-renderer packing fallback.
-- [ ] **M3 — Civilian assembly:** certify per-ID/profession component selection,
-  original age/gender/height/waist geometry, material/rig reconstruction, shoulder/
-  head scaling and local outline uniforms after final assembly. Retain source
-  renderer neutrality independently of combat faction/spy metadata.
 
 ## Mech rigs and full pose order
 
@@ -53,7 +50,7 @@ transported bodies. Imported source/glTF must remain read-only.
   rigs, current next non-FX emitter, world-space camera-ray convergence and source
   eye/forward fallback. Preserve the final scoped shot's FPV ray with restored
   TPS port and one resource spend. Authority timing/heading/wiring is an Opus
-  integration request; local view state is Terra-owned and input state is Sol-owned.
+  integration request; local view state and input state are Sonnet-owned.
 
 ## Gameplay NPCs and combat structures
 
@@ -66,38 +63,10 @@ transported bodies. Imported source/glTF must remain read-only.
   per-pilot half-size kamikazes, faction bomber/hypersonic graphs and explicit
   rigless behavior. Compare remote body transforms, ground/deck/water clamps,
   previous-rendered-position LOD, cached surface/support and live shot memories.
-- [ ] **M12 — Markers/bars/LOD/occlusion:** certify source billboard glyphs,
-  head anchors/fades, civilian public following marks and overhead HP/shield bar
-  creation/cache/removal. Finish source geometry LOD/hysteresis/stride/zoom,
-  geoKeep/outline traversal and prefab visibility. Certify nine-sample TPS
-  occlusion, actual MultiMesh instances, hidden geometry/BVH grazing precision,
-  per-instance fade restoration and camera/PiP masks. Shared shader implementation
-  is Opus-owned; it must not be replaced by a model-local approximation.
-
-## Damage, removal and missile models
-
-- [ ] **M13 — Building/static damage:** certify private mesh/material bindings,
-  original deformation/normal/linear-colour/scar buffers, crack face/area/tie
-  order, repair and alias restoration. Complete source combat-building damage,
-  collapse/debris pose, map-building part-motion pause and model/world ownership
-  clearance. HP/rubble/fire/salvage
-  settlement stays in simulation; decorative world packing remains Sol-owned.
-- [ ] **M14 — Mobile damage/removal:** certify opaque tint/scar exclusions,
-  articulated anchors, part caps, stage draw ranges, guard materials and persistent
-  smoke/cracks/flames. Preserve first-observation/healing/fog/collapse cleanup,
-  death-authorized squash/fracture, silent removal and material-gated dissolve.
-  Ghosts retain final pose/material aliases/outline state but no collider/target.
-  Finish shader/weather/shadow composition, full raster and resource lifecycle.
-- [ ] **M15 — Missile geometry/query:** certify standalone source bodies,
-  animated/hidden/material-sided triangle selection, damage-stage geometry,
-  nearest/tied hits and source outline triangles. Keep authority collision poses
-  independent of interpolated views. Owner echo versus environmental stop priority,
-  penetration exclusions, interpolation and minimap effects are consumer contracts
-  to validate with Sol/Opus, not new model-side damage settlement.
 
 ## Source regeneration and acceptance
 
-Coordinate canonical source capture/fixtures with Opus before packing. Existing
+Coordinate canonical source capture/fixtures with lane A before packing. Existing
 native model packer categories include:
 
 ```powershell
@@ -109,15 +78,13 @@ godot --path . res://tools/import_cockpits.tscn -- --first-person-shields
 ```
 
 Use the same packer for the relevant projectile/hazard/loot/NPC-effect/weapon-
-effect categories only when that owned model output changes. Keep packing on a
+effect categories only when that owned model output changes, including repacks
+requested by the Sonnet model lane. Keep packing on a
 real driver. Dedicated source/native suites include `body_*_suite.gd`,
-`npc_body_suite.gd`, `carrier_body_suite.gd`, `civilian_body_suite.gd`,
-`geometry_lod_suite.gd`, `view_occlusion_suite.gd`, `scene_damage_suite.gd`,
-`mobile_damage_suite.gd`, `damage_fx_suite.gd`, `body_removal_suite.gd`,
-`dissolve_suite.gd` and `missile_view_ray_suite.gd`.
+`npc_body_suite.gd` and `carrier_body_suite.gd`.
 
 Complete populated real-driver render checks and existing transport cases
-`-Bodies`, `-Tps`, `-HeadMarks` and `-VitalBars` as relevant, one case per run,
+`-Bodies` and `-Tps` as relevant, one case per run,
 plus root runtime gates. Full SUPER/BOSS scale, private/remote poses and
 death/reentry/room cleanup must agree with source. Remove resolved items; retain
 only active blockers and exact owner handoffs, without model-generation history.

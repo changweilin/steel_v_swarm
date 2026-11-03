@@ -34,7 +34,8 @@ export function captureMarineMaterial(material, programCapture = null, textureCa
   // This invokes only the original text/uniform callback, never a graphics compiler.
   const shader = {uniforms:{},
     vertexShader:'void main() {\n#include <beginnormal_vertex>\n#include <project_vertex>\n}',
-    fragmentShader:'#include <gradientmap_pars_fragment>\nvoid main() {\n#include <color_fragment>\n#include <opaque_fragment>\n}'};
+    // The cel patch injects its wash block at normal_fragment_begin, after color_fragment as in meshtoon.
+    fragmentShader:'#include <gradientmap_pars_fragment>\nvoid main() {\n#include <color_fragment>\n#include <normal_fragment_begin>\n#include <opaque_fragment>\n}'};
   material.onBeforeCompile(shader);
   const uniforms = {};
   const vectors = {};

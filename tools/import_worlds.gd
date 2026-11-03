@@ -537,7 +537,8 @@ func _run() -> void:
 						push_error("Missing/invalid original climb route field: " + file + ": " + key)
 						get_tree().quit(1)
 						return
-				if float(route.y1) <= float(route.y0) or not Content.balance.movement.climb.notices.has(route.get("kind", "")):
+				# Source climb.js keeps routes whose top lies below their ground end; climb_state tops them out like game.js.
+				if not Content.balance.movement.climb.notices.has(route.get("kind", "")):
 					push_error("Unsupported original climb route: " + file)
 					get_tree().quit(1)
 					return

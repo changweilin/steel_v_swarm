@@ -37,7 +37,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: assets/worlds/${{ matrix.bundle }}.res
-          key: world-${{ matrix.bundle }}-${{ env.GODOT_VERSION }}-${{ hashFiles(format('data/worlds/{0}.json', matrix.bundle), 'data/*.json', 'project.godot', 'scripts/**/*.gd', 'tools/**/*.gd', 'shaders/**') }}
+          key: world-${{ matrix.bundle }}-${{ env.GODOT_VERSION }}-${{ hashFiles(format('data/worlds/{0}.json', matrix.bundle), 'data/*.json', '!data/fixtures.json', 'project.godot', 'scripts/**/*.gd', 'tools/**/*.gd', 'shaders/**') }}
       - name: Pack native world
         if: steps.cache.outputs.cache-hit != 'true'
         shell: pwsh

@@ -1164,6 +1164,20 @@ them. Remove completed items; no dated checkpoints or copied validation history.
   consumption. With `--fixture-budget-mib=1024` that suite reports 161,509 of
   133,473,624 failures and 16,559 script errors (`float` constructor,
   `QuadMesh.surface_get_primitive_type`, `max_shield` on a Dictionary).
+- **Campaign worlds (`campaign_suite`):** 24 `story_*` bundles are required.
+  `story_giza_{steel,swarm}_3_summer` are captured, packed and pass
+  `tests/worlds.tscn`; the other 22 remain. Capture from an export of the
+  pinned snapshot, never the live source tree: `git archive 771e670e` with the
+  source's autocrlf, then LF blobs for `charPreview.js`, `lookPrefs.js`,
+  `movePrefs.js` and `pool.js`, plus the source working-tree `artSwipe.js`
+  (`aea36ae4…`) and `rng.js` (`96773f68…`), which were uncommitted when the
+  Berlin size-5 bundles were captured. All 226 recorded inputs must match before
+  capture. `data/source_campaign/` holds the OSM road and Terrarium captures
+  from `tools/capture_campaign_inputs.mjs`. Marine program capture needs
+  `normal_fragment_begin`, where the cel patch injects its wash; the importer
+  accepts inverted climb routes (`y1 < y0`), which `climb.js` keeps and
+  `climb_state.gd` tops out as `game.js` does. Packs reference
+  `assets/worlds/shaders/*.gdshaderinc`; a CI matrix entry must also ship it.
 - **Terra — per-part view occlusion for batched buildings
   (`scripts/view_occlusion.gd`):** source `_registerViewOccluders` fades individual
   source meshes. Batches carry `noViewOcclusion` meta, so their parts never fade;

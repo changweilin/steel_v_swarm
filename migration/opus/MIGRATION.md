@@ -38,6 +38,10 @@ keep the full requests; find them by searching their backlogs for `**Opus`.
     preservation in `tools/world_references.mjs`.
   - **O26B (lane B):** "float vertex colors" and "cel resource metadata". Add
     "original sign emission" if the selected baseline bundle has active glow.
+    Godot 4.7.2 stores `ARRAY_COLOR` as RGBA8, and GDScript cannot read a
+    `StandardMaterial3D`'s generated shader, so lossless colors need an authored
+    world surface shader (O3) reading float storage. `ARRAY_CUSTOM0`/`1` already
+    carry marine data. The cel mismatch needs the selected bundle's mesh buffers.
     "Exact native source JSON numbers" is exposed as
     `SourceFixtureSections.restore_numeric_tape` (guarded by
     `tests/source_numeric_tape.tscn`); its acceptance still needs Sol's binding

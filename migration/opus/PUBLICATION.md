@@ -76,4 +76,4 @@ and `--chrome C:/path/to/chrome.exe` when the source development browser helper
 is unavailable. It verifies the existing audio-source provenance before atomic
 publication and rejects source or destination changes during capture. The scene
 checks only the envelope; playback, resampling and audible integration require
-the Sol consumer's acceptance.
+the Sonnet presentation consumer's acceptance.

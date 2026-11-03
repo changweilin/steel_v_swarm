@@ -26,19 +26,15 @@
 
 1. Keep this file and the root `MIGRATION.md` as stable shared instructions.
 2. Select one workstream and explicitly read its `AGENTS.md`, then its
-   `MIGRATION.md`. The selected instructions govern that workstream's assigned
+   `MIGRATION.md` index and the one lane backlog it names. The selected instructions govern that workstream's assigned
    files even when those files live outside its documentation directory.
 3. Read only the source, fixtures and acceptance commands needed for the task.
    Sibling workstream instructions, backlogs and research are opt-in context.
 
 | Workstream | Instructions | Default model |
 | --- | --- | --- |
-| Bounded UI and settings | [Flash](migration/flash/AGENTS.md) | Gemini Flash |
-| World/resources, audio, input and combat presentation | [Sol](migration/sol/AGENTS.md) | ChatGPT Sol 6.1 |
-| View/scope, minimap, PiP and campaign presentation | [Terra](migration/terra/AGENTS.md) | ChatGPT Terra 6.1 |
-| Leased fixes and reruns that unblock Opus | [Sonnet](migration/sonnet/AGENTS.md) | Claude Sonnet 5.5 |
-| Authority, integration and difficult source semantics | [Opus](migration/opus/AGENTS.md) | Claude Opus |
-| Mechs, gameplay NPCs and combat-building models | [Models](migration/models/AGENTS.md) | Task-dependent; outside the difficulty tiers |
+| Presentation, view/campaign/UI, model presentation and leased fixes | [Sonnet](migration/sonnet/AGENTS.md) | Claude Sonnet 5.5 |
+| Authority, integration, difficult source semantics, rigs and actor packing | [Opus](migration/opus/AGENTS.md) | Claude Opus 5.5 |
 
 ## Independent edits and stable prefixes
 

@@ -135,6 +135,7 @@ var status_icons := StatusIconState.new()
 var status_icon_strip: StatusIconStrip
 var room_world_resources := RoomWorldResources.new()
 var room_world_prebuild := RoomWorldPrebuild.new()
+var retiring_simulation: WeakRef
 var room_preload_box: VBoxContainer
 var room_preload_label: Label
 var room_preload_progress: ProgressBar
@@ -822,7 +823,8 @@ func _update_preload_status() -> void:
 	room_preload_progress.visible = not failed and not ready
 
 func _update_lobby() -> void:
-	if Session.active and Session.phase == "room" and not Session.dedicated and not Session.leaving:
+	var world_retiring := retiring_simulation != null and retiring_simulation.get_ref() != null
+	if Session.active and Session.phase == "room" and not Session.dedicated and not Session.leaving and not world_retiring:
 		room_world_prebuild.request(Session.config)
 	_update_preload_status()
 	if return_button != null:
@@ -2458,6 +2460,10 @@ func _room_cleared() -> void:
 	_reset_death_view()
 	view_occlusion.dispose()
 	if simulation != null:
+		# A native world holds most of the mesh RID budget. Loading the next one on
+		# worker threads while this one is freed races the renderer's RID owner.
+		retiring_simulation = weakref(simulation)
+		simulation.tree_exited.connect(_update_lobby, CONNECT_DEFERRED | CONNECT_ONE_SHOT)
 		simulation.queue_free()
 		simulation = null
 	view_ready = false

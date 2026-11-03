@@ -9,6 +9,7 @@ const SynthesisTests = preload("res://tests/audio_synthesis_suite.gd")
 const SceneTests = preload("res://tests/audio_scene_suite.gd")
 const MoveTests = preload("res://tests/audio_move_suite.gd")
 const LocalFireTests = preload("res://tests/local_fire_suite.gd")
+const PcmGain = preload("res://scripts/audio_pcm_gain.gd")
 
 class RecordedPreferences extends AudioPreferences:
 	var writes: Array = []
@@ -224,7 +225,7 @@ static func _buses(h: Node) -> void:
 		var bus_index := AudioServer.get_bus_index(bus_name)
 		h._check(AudioServer.get_bus_send(bus_index) == buses.sfx and AudioServer.get_bus_effect(bus_index, 0) is AudioEffectPanner, "Native panner sends into the shared SFX bus")
 	if not voice.players.is_empty():
-		h._check(voice.players[-1].bus == buses.sfx and is_equal_approx(voice.players[-1].volume_linear, .35), "A centered synthesis layer bypasses panning and restores its captured normalization gain")
+		h._check(voice.players[-1].bus == buses.sfx and is_equal_approx(voice.players[-1].volume_linear, PcmGain.native_gain(wave, .35)), "A centered synthesis layer bypasses panning and restores its captured normalization gain")
 	var voice_routes: Array[StringName] = voice.routes.duplicate()
 	voice.free()
 	h._check(await _removed(h, voice_routes), "Retired voice routes wait for native fade-out mixes before deletion")

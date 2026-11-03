@@ -53,14 +53,21 @@ func sync(states: Array, now: float, weather: Dictionary) -> void:
 
 func _opacity(node: MeshInstance3D, opacity: float, token: int, disable_depth_write: bool = false) -> bool:
 	for surface in range(node.mesh.get_surface_count()):
-		var material: StandardMaterial3D = node.mesh.surface_get_material(surface)
-		material.albedo_color.a = opacity
+		var material: Material = node.mesh.surface_get_material(surface)
+		if material is StandardMaterial3D:
+			(material as StandardMaterial3D).albedo_color.a = opacity
+		elif material is ShaderMaterial:
+			var shader_material := material as ShaderMaterial
+			var color: Color = shader_material.get_shader_parameter("uSourceAlbedo")
+			color.a = opacity
+			shader_material.set_shader_parameter("uSourceAlbedo", color)
 		if not _current(token):
 			return false
 		if disable_depth_write:
-			material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-			if not _current(token):
-				return false
+			if material is BaseMaterial3D:
+				(material as BaseMaterial3D).depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+				if not _current(token):
+					return false
 			material.set_meta("source_depth_write", false)
 			if not _current(token):
 				return false

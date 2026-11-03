@@ -46,8 +46,9 @@ static func poses(h: Node, fixtures: Array) -> void:
 		pose.configure(fixture.character)
 		var unit := BattleUnit.new()
 		sim.add_child(unit)
+		var side: String = Content.heroes[fixture.character].side
 		unit.configure({"id": 9901, "character": fixture.character, "kind": Content.heroes[fixture.character].kind,
-			"side": "STEEL", "position": Vector3.ZERO})
+			"side": "STEEL" if side == "MERC" else side, "position": Vector3.ZERO})
 		unit.ensure_cockpit()
 		var rig := unit.cockpit
 		var serial := 0
@@ -102,7 +103,6 @@ static func integration(h: Node) -> void:
 	var sim := BattleSimulation.new()
 	h.add_child(sim)
 	var map_data := Content.map_variant(0, 1)
-	map_data.erase("native_world")
 	await sim.setup(map_data, [{"peer": 992, "side": "STEEL", "character": "t06", "bot": false}], {"time": "day", "weather": "clear"}, true)
 	sim.set_physics_process(false)
 	var actor: BattleUnit = sim.pilots[992]

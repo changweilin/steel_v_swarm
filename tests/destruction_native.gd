@@ -52,16 +52,6 @@ func _run() -> void:
 		raw.convert(Image.FORMAT_RGBA8)
 		_check(raw.get_size() == expected.get_size() and raw.get_data() == expected.get_data(),
 			"Original comic canvas pixels match the captured PNG: " + key)
-		if key == "comic-small-0-0" and actual.get_size() == expected.get_size():
-			var fixed := raw.duplicate() as Image
-			fixed.fix_alpha_edges()
-			var changed := {"transparent": 0, "visible": 0}
-			for y in range(actual.get_height()):
-				for x in range(actual.get_width()):
-					if actual.get_pixel(x, y) != expected.get_pixel(x, y):
-						changed["transparent" if expected.get_pixel(x, y).a == 0 else "visible"] += 1
-			print("COMIC_TEXTURE_DIFFERENCES ", changed)
-			print("COMIC_ALPHA_BORDER_MATCHES_IMPORT ", fixed.get_data() == actual.get_data())
 		_check(actual.get_size() == expected.get_size() and actual.get_data() == expected.get_data(),
 			"Original comic canvas pixels survive native texture import: " + key)
 	var effects := DestructionTests.PaddedEffects.new()

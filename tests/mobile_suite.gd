@@ -108,7 +108,8 @@ static func run(h: Node, fixtures: Dictionary) -> void:
 		var path := "user://mobile_preferences_fixture.cfg"
 		var file := ConfigFile.new()
 		for key: String in item.saved:
-			file.set_value("input", key, item.saved[key])
+			# ConfigFile erases a key set to null; the source clamps Number(null), so persist "".
+			file.set_value("input", key, "" if item.saved[key] == null else item.saved[key])
 		h._check(file.save(path) == OK, "Prepare a native preference fixture without touching player settings")
 		var preferences := ControlPreferences.new()
 		preferences.configure(Content.balance.mobile)

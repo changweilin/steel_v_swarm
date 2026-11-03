@@ -29,10 +29,11 @@ func _create_simulation() -> BattleSimulation:
 func _physics_process(delta: float) -> void:
 	if Session.launch_announced:
 		elapsed += delta
-	if elapsed > 18:
+	# The client launches after the authority and owns this deadline.
+	if not Session.dedicated and elapsed > 18:
 		_fail("NETWORK_BLAST_TIMEOUT phase=%d" % phase)
 		return
-	if simulation == null:
+	if simulation == null or not Session.launch_announced:
 		return
 	if Session.dedicated:
 		if fixture_peer == 0:

@@ -1,5 +1,6 @@
 # CI passes -SkipFixtures because its sharded fixtures job runs tests/run.tscn against the baseline.
-param([Parameter(Mandatory = $true)][string]$Godot, [switch]$SkipFixtures)
+# -NetworkSeason forwards test_network.ps1 -Season while CI only packs the summer berlin_1 bundles.
+param([Parameter(Mandatory = $true)][string]$Godot, [switch]$SkipFixtures, [string]$NetworkSeason = '')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 $Godot = (Get-Command $Godot -ErrorAction Stop).Source
@@ -33,7 +34,7 @@ Invoke-GodotCheck 'import' @('--headless', '--path', $projectRoot, '--editor', '
 # and texture buffers, which the headless renderer discards; ANGLE also runs on GPU-less CI.
 if (-not $SkipFixtures) { Invoke-GodotCheck 'fixtures' @('--path', $projectRoot, '--rendering-method', 'gl_compatibility', '--rendering-driver', 'opengl3_angle', '--audio-driver', 'Dummy', '--position', '-32000,-32000', '--resolution', '64x64', 'res://tests/run.tscn') 'TEST_PASS' 1800000 }
 Invoke-GodotCheck 'smoke' @('--headless', '--path', $projectRoot, '--', '--smoke') 'SMOKE_PASS' 600000
-& (Join-Path $PSScriptRoot 'test_network.ps1') -Godot $Godot
+& (Join-Path $PSScriptRoot 'test_network.ps1') -Godot $Godot -Season $NetworkSeason
 Invoke-GodotCheck 'export' @('--headless', '--path', $projectRoot, '--export-release', 'Web', (Join-Path $outputRoot 'index.html'))
 foreach ($file in @('index.html', 'index.js', 'index.wasm', 'index.pck')) {
     if (-not (Test-Path (Join-Path $outputRoot $file)) -or (Get-Item (Join-Path $outputRoot $file)).Length -eq 0) {

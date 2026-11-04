@@ -45,16 +45,6 @@ Requests from the published capture:
   Chromium 151 PCM no longer match the catalogue. Acceptance: `audio_suite` returns
   to its one known `_buses` failure (`tests/audio_clip_suite.gd:30` adds 152 more)
   and `tests/audio_lifecycle.tscn` clears its 6 movement noise/oscillator failures.
-- **Sonnet view — scope blur passes:** a single pass costs up to 625 samples per pixel at
-  sigma 4 while fire fog shows, so `scripts/scope_overlay.gd` needs separate horizontal
-  and vertical passes before Web and mobile delivery (O24). Lane B splits
-  `shaders/scope_mask.gdshader` when the view lane names the pass targets. Above sigma 4
-  the browser stores a 2x2 box downsample, the horizontal pass and the vertical pass as
-  RGBA8 at half resolution, upscales bilinearly rounding halves down, and blends the
-  group as bytes after opacity; the shader computes these stores in one pass, so split
-  targets must be RGBA8 in that order. The dither and tile phase use `floor(UV *
-  viewport)` of the full overlay, so every pass must cover it; the source's per-tile
-  dither origins remain unmodelled. Acceptance: `tests/scope_raster.tscn` with no failures.
 
 - [ ] **O26 — World contracts:** complete before SN8.
   - **O26A (lane A):** "layered-deck reference provenance". The producer is
@@ -118,6 +108,18 @@ contracts to D, and `scripts/main.gd` or `project.godot` contracts to E.
 
 Accepted contracts awaiting their consumers:
 
+- **Sonnet view — scope blur pass targets:** `shaders/scope_mask.gdshader` takes `pass`
+  (0 final, 1 down, 2 horizontal, 3 vertical), `blur_source` and `blur_split`. Each
+  target copies the overlay material with its `pass` and the previous target as
+  `blur_source`; pass 1 binds the unscoped page (it applies the scope itself). Target
+  pixel q stores half-resolution texel q - (extent + 1), extent = ceil(1.5 * fire_blur),
+  so each overlay dimension d needs d >= ceil(d / 2) + 2 * extent + 2 (40 px at the
+  6 px maximum); keep the single pass below that. Set `blur_split` on the final material
+  with `blur_source = scope_blur_v`; it defaults off, which keeps the single pass. Passes
+  sample at most 2 * extent + 1 texels per pixel. A harness wiring three full-size RGBA8
+  `SubViewport`s matched all 18 `scope_raster` cases with no failing pixels on ANGLE,
+  and failed all six split cases without the vertical pass. Acceptance:
+  `tests/scope_raster.tscn` with the targets wired.
 - **Sonnet view:** `SourceNumeric.hypot(x, y)` matches Chromium 151 `Math.hypot` bits
   (`tests/source_numeric.tscn`, corpus from `tools/source_numeric_capture.mjs`); bind it
   in `ViewLockState.advance` and `MinimapVision.shadows`. Browser `Math.sin`/`cos` stays

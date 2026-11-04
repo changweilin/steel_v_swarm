@@ -110,7 +110,13 @@ static func _effect(h: Node, effect: Dictionary, reference: Dictionary) -> void:
 		var encoded := Color(tint.x, tint.y, tint.z).linear_to_srgb()
 		h._check(int(encoded.to_rgba32() >> 8) == int(reference.color), "Original NPC primitive linear material colour")
 		if reference.roll != null:
-			h._near(float(material.get_shader_parameter("roll")), reference.roll, "Original starburst billboard roll from an independent visual stream")
+			# Unassigned uniforms read back as null; sprites that never set roll keep the shader default.
+			var roll: Variant = material.get_shader_parameter("roll")
+			if roll == null:
+				roll = RenderingServer.shader_get_parameter_default(material.shader.get_rid(), "roll")
+			h._check(roll != null, "Original sprite material declares a billboard roll")
+			if roll != null:
+				h._near(float(roll), reference.roll, "Original starburst billboard roll from an independent visual stream")
 	if reference.has("instances"):
 		var batch := node as MultiMeshInstance3D
 		h._check(batch.multimesh.instance_count == reference.instances.size(), "Original bounded NPC beam ring count")

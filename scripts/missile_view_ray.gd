@@ -51,7 +51,11 @@ static func _damage(root: Node3D, start: Vector3, end: Vector3) -> Dictionary:
 		if mesh.mesh == null:
 			return hit
 		for surface in range(mesh.mesh.get_surface_count()):
-			if mesh.mesh.surface_get_primitive_type(surface) != Mesh.PRIMITIVE_TRIANGLES:
+			# Only ArrayMesh exposes a primitive type; PrimitiveMesh surfaces are always triangles.
+			if mesh.mesh is ArrayMesh:
+				if (mesh.mesh as ArrayMesh).surface_get_primitive_type(surface) != Mesh.PRIMITIVE_TRIANGLES:
+					continue
+			elif not mesh.mesh is PrimitiveMesh:
 				continue
 			var arrays := mesh.mesh.surface_get_arrays(surface)
 			var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]

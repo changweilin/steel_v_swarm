@@ -112,13 +112,14 @@ static func _production(h: Node, fixtures: Dictionary) -> void:
 			unit.geometry_override = {"height": 6.0, "radius": 3.0}
 			unit.model = graph.root
 			unit.add_child(unit.model)
-			simulation.present_victim_snapshot(unit, {"hp": 100.0, "max_hp": 100.0, "shield": 0.0})
+			simulation.present_victim_snapshot(unit, {"hp": 100.0, "max_hp": 100.0, "shield": 0.0, "max_shield": 0.0, "side": unit.side})
 			var resources := [unit.hp, unit.max_hp, unit.shield, unit.money, unit.power, simulation.clock, simulation.rng.state, simulation.projectile_rng.state]
 			for step: Dictionary in item.steps:
 				effects.order.clear()
 				if step.initial:
 					simulation.victim_reports.erase(unit.entity_id)
-				simulation.present_victim_snapshot(unit, {"hp": float(step.hp), "max_hp": 100.0, "shield": 0.0, "special": {"collapsed": item.collapsed}})
+				simulation.present_victim_snapshot(unit, {"hp": float(step.hp), "max_hp": 100.0, "shield": 0.0, "max_shield": 0.0, "side": unit.side,
+					"special": {"collapsed": item.collapsed}})
 				var stage := unit.mobile_damage.stage if item.mobile else unit.scene_damage.stage
 				h._check(effects.order == step.order and stage == int(step.stage),
 					"Authority and replica publication retain original victim-before-damage ordering and visibility baselines")

@@ -120,6 +120,16 @@ jobs:
           python -m playwright install chromium
       - name: Run exported game in Chromium
         run: python tools/test_web.py build/web
+      # tests/run.gd writes per-assertion failures to user://, outside the workspace.
+      - name: Collect fixture failure report
+        if: always()
+        shell: pwsh
+        run: |
+          $report = "$env:APPDATA/Godot/app_userdata/Steel vs. Swarm/source-fixture-failures.jsonl"
+          if (Test-Path $report) {
+            New-Item -ItemType Directory -Force build/logs | Out-Null
+            Copy-Item $report build/logs/
+          }
       - name: Upload diagnostic logs
         if: always()
         uses: actions/upload-artifact@v4

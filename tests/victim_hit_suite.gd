@@ -70,7 +70,8 @@ static func _production(h: Node, guards: Array) -> void:
 	var resources := [owner.hp, owner.shield, owner.power, owner.ammo.duplicate(), owner.fire_serial,
 		simulation.rng.state, simulation.projectile_rng.state]
 	var publish := func(vitals: Dictionary):
-		var state := {"id": owner.entity_id, "position": owner.position, "yaw": 0.0, "max_hp": owner.max_hp}
+		var state := {"id": owner.entity_id, "position": owner.position, "yaw": 0.0, "max_hp": owner.max_hp,
+			"max_shield": owner.max_shield, "side": owner.side}
 		state.merge(vitals, true)
 		simulation.apply_presentation_view({"units": [state], "clock": 10})
 	publish.call({"hp": 700, "shield": 120, "defending": true})

@@ -71,7 +71,7 @@ static func _lifecycle(h: Node, fixtures: Array) -> void:
 	simulation.units[unit.entity_id] = unit
 	var resources := [unit.hp, unit.shield, unit.money, unit.power, unit.ammo.duplicate(true), simulation.clock, simulation.rng.state, simulation.projectile_rng.state]
 	var publish := func(health: float):
-		simulation.apply_presentation_view({"units": [{"id": unit.entity_id, "hp": health, "max_hp": 100.0, "shield": 0.0}], "clock": 10.0})
+		simulation.apply_presentation_view({"units": [{"id": unit.entity_id, "hp": health, "max_hp": 100.0, "shield": 0.0, "max_shield": 0.0, "side": unit.side}], "clock": 10.0})
 	publish.call(100)
 	h._check(not unit.mobile_damage.initialized and effects.bursts == 0, "An intact first observation caches parts without allocating scars or tint")
 	publish.call(25)

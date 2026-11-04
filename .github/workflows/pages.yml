@@ -33,11 +33,18 @@ jobs:
         with:
           lfs: true
           persist-credentials: false
+      # Only the packer's static dependency closure invalidates a cached bundle.
+      - id: inputs
+        shell: pwsh
+        run: |
+          $key = node tools/world_pack_inputs.mjs ${{ matrix.bundle }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "key=$key" >> $env:GITHUB_OUTPUT
       - id: cache
         uses: actions/cache@v4
         with:
           path: assets/worlds/${{ matrix.bundle }}.res
-          key: world-${{ matrix.bundle }}-${{ env.GODOT_VERSION }}-${{ hashFiles(format('data/worlds/{0}.json', matrix.bundle), 'data/*.json', '!data/fixtures.json', 'project.godot', 'scripts/**/*.gd', 'tools/**/*.gd', 'shaders/**') }}
+          key: world-${{ matrix.bundle }}-${{ env.GODOT_VERSION }}-${{ steps.inputs.outputs.key }}
       - name: Pack native world
         if: steps.cache.outputs.cache-hit != 'true'
         shell: pwsh
@@ -63,6 +70,67 @@ jobs:
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
+
+  # tests/run.tscn exceeds one runner's budget on software ANGLE, so --fixture-shard splits
+  # its suites. Each shard fails only on failures beyond tests/fixture_baseline.json.
+  fixtures:
+    needs: worlds
+    runs-on: windows-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    env:
+      SHARDS: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: world-*
+          path: assets/worlds
+          merge-multiple: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Install official Godot
+        shell: pwsh
+        run: |
+          $release = "https://github.com/godotengine/godot-builds/releases/download/$env:GODOT_VERSION-stable"
+          Invoke-WebRequest "$release/Godot_v$env:GODOT_VERSION-stable_win64.exe.zip" -OutFile "$env:RUNNER_TEMP/godot.zip"
+          Expand-Archive "$env:RUNNER_TEMP/godot.zip" "$env:RUNNER_TEMP/godot"
+      - name: Run fixture shard
+        shell: pwsh
+        run: |
+          $godot = "$env:RUNNER_TEMP/godot/Godot_v$env:GODOT_VERSION-stable_win64_console.exe"
+          $logs = "build/logs"
+          New-Item -ItemType Directory -Force $logs | Out-Null
+          New-Item -ItemType File -Force build/.gdignore | Out-Null
+          & $godot --headless --path . --editor --import *> "$logs/import.log"
+          if ($LASTEXITCODE -ne 0) { Get-Content "$logs/import.log"; exit 1 }
+          # Fixtures compare MultiMesh and texture buffers, which the headless renderer discards.
+          & $godot --path . --rendering-method gl_compatibility --rendering-driver opengl3_angle --audio-driver Dummy --position -32000,-32000 --resolution 64x64 res://tests/run.tscn -- "--fixture-shard=${{ matrix.shard }}/$env:SHARDS" > "$logs/fixtures.log" 2> "$logs/fixtures-errors.log"
+          # Exit code 1 only reports failures; the baseline decides. Anything else is a crash.
+          if ($LASTEXITCODE -notin @(0, 1)) { Get-Content "$logs/fixtures.log" -Tail 40; exit 1 }
+          Select-String -Path "$logs/fixtures.log" -Pattern '^(SOURCE_SUITE_END|TEST_FAIL|TEST_PASS|SOURCE_FIXTURE_PASS)'
+          exit 0
+      - name: Compare with known failures
+        shell: pwsh
+        run: |
+          $report = "$env:APPDATA/Godot/app_userdata/Steel vs. Swarm/source-fixture-failures.jsonl"
+          Copy-Item $report build/logs/
+          node tools/fixture_baseline.mjs check tests/fixture_baseline.json build/logs/source-fixture-failures.jsonl build/logs/fixtures-errors.log build/logs/fixtures.log
+      - name: Upload fixture logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fixture-logs-${{ matrix.shard }}
+          path: build/logs/
+          if-no-files-found: ignore
 
   build:
     needs: worlds
@@ -113,23 +181,13 @@ jobs:
           } finally { $archive.Dispose() }
       - name: Validate native game and export single-player Web build
         shell: pwsh
-        run: ./tools/export_web.ps1 -Godot "Godot_v${env:GODOT_VERSION}-stable_win64_console.exe"
+        run: ./tools/export_web.ps1 -Godot "Godot_v${env:GODOT_VERSION}-stable_win64_console.exe" -SkipFixtures
       - name: Install browser test tools
         run: |
           python -m pip install playwright==1.58.0
           python -m playwright install chromium
       - name: Run exported game in Chromium
         run: python tools/test_web.py build/web
-      # tests/run.gd writes per-assertion failures to user://, outside the workspace.
-      - name: Collect fixture failure report
-        if: always()
-        shell: pwsh
-        run: |
-          $report = "$env:APPDATA/Godot/app_userdata/Steel vs. Swarm/source-fixture-failures.jsonl"
-          if (Test-Path $report) {
-            New-Item -ItemType Directory -Force build/logs | Out-Null
-            Copy-Item $report build/logs/
-          }
       - name: Upload diagnostic logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -154,7 +212,7 @@ jobs:
 
   deploy:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: build
+    needs: [build, fixtures]
     runs-on: ubuntu-latest
     permissions:
       pages: write

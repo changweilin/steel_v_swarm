@@ -347,9 +347,12 @@ Accepted contracts awaiting their consumers:
   A case that aborts before freeing its match leaks that world into later cases.
   Campaign deployment still requires authored chapter terrain. Pull failures
   reported by SN9; presentation failures cannot certify populated traversal or
-  field interactions. CI's `tools/export_web.ps1` `fixtures` step runs
-  `tests/run.tscn` on `opengl3_angle`; the headless dummy renderer drops
-  MultiMesh and texture data. At `234abb7c`, both Windows ANGLE and Linux
+  field interactions. CI's `fixtures` job runs `tests/run.tscn` on
+  `opengl3_angle` in `--fixture-shard=K/4` shards (`export_web.ps1 -SkipFixtures`
+  in `build`); the headless dummy renderer drops MultiMesh and texture data.
+  Each shard fails only on failures beyond `tests/fixture_baseline.json`
+  (`tools/fixture_baseline.mjs`); the baseline is this item's open failure list,
+  never acceptance. Shrink it with `update` when `FIXTURE_BASELINE_IMPROVED` appears. At `234abb7c`, both Windows ANGLE and Linux
   `xvfb-run` + `opengl3` reported 153 `audio_suite` failures (83 synthesis stem
   provenance, 14 native PCM bytes, 44 gain envelopes, 4 music). Those still
   need an owner. On llvmpipe, `texture_suite`'s 7 cel float-bit checks fail

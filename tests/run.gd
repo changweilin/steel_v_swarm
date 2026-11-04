@@ -83,6 +83,11 @@ class VisibilityUnit extends BattleUnit:
 		pass
 
 var failures := 0
+# --fixture-shard=K/N: shard K runs every Nth suite outside the inline core; shard 0 also runs the core.
+var shard_index := 0
+var shard_count := 1
+var shard_ordinal := -1
+var core_running := false
 var failure_report: FileAccess
 var failure_scope := "core"
 var scope_failures := {}
@@ -140,6 +145,19 @@ func _run() -> void:
 	for argument: String in OS.get_cmdline_user_args():
 		if argument.begins_with("--fixture-suite="):
 			selected.append(argument.trim_prefix("--fixture-suite="))
+		elif argument.begins_with("--fixture-shard="):
+			var shard := argument.trim_prefix("--fixture-shard=").split("/")
+			if shard.size() != 2 or not shard[0].is_valid_int() or not shard[1].is_valid_int() \
+					or int(shard[1]) < 1 or int(shard[0]) < 0 or int(shard[0]) >= int(shard[1]):
+				_check(false, "Invalid fixture shard, expected --fixture-shard=K/N with 0 <= K < N: " + argument)
+				_finish()
+				return
+			shard_index = int(shard[0])
+			shard_count = int(shard[1])
+	if not selected.is_empty() and shard_count > 1:
+		_check(false, "--fixture-suite and --fixture-shard select suites differently; pass only one")
+		_finish()
+		return
 	if not selected.is_empty():
 		Content.read_json("res://data/fixtures.json", [])
 		for path: String in selected:
@@ -149,7 +167,11 @@ func _run() -> void:
 			await _run_fixture_suite(load("res://" + path))
 		_finish()
 		return
-	var fixtures: Dictionary = Content.read_json("res://data/fixtures.json", Content.fixture_sections_for(get_script(), false))
+	var fixtures: Dictionary = {}
+	if shard_index == 0:
+		fixtures = Content.read_json("res://data/fixtures.json", Content.fixture_sections_for(get_script(), false))
+	else:
+		Content.read_json("res://data/fixtures.json", [])
 	await _run_fixture_suite(RoomTests)
 	await _run_fixture_suite(RoomMemberTests)
 	await _run_fixture_suite(RoomAdmissionTests)
@@ -174,6 +196,77 @@ func _run() -> void:
 	await _run_fixture_suite(FieldEventTests)
 	await _run_fixture_suite(RoomRosterTests)
 	await _run_fixture_suite(RoomLoadingTests)
+	if shard_index == 0:
+		await _core_tests(fixtures)
+	await _run_fixture_suite(CameraTests)
+	await _run_fixture_suite(BurstTests)
+	await _run_fixture_suite(ProjectileVisualTests)
+	await _run_fixture_suite(StatusTests)
+	await _run_fixture_suite(HealAuraTests)
+	await _run_fixture_suite(SimulationFrameTests)
+	await _run_fixture_suite(DeathLifecycleTests)
+	await _run_fixture_suite(MissileDefenseTests)
+	await _run_fixture_suite(AimingPresentationTests)
+	await _run_fixture_suite(BotTests)
+	await _run_fixture_suite(BossTests)
+	await _run_fixture_suite(CampaignTests)
+	await _run_fixture_suite(SuperTests)
+	await _run_fixture_suite(ControlsTests)
+	await _run_fixture_suite(MobileTests)
+	await _run_fixture_suite(ViewTests)
+	await _run_fixture_suite(PlayerViewTests)
+	await _run_fixture_suite(BodyTests)
+	await _run_fixture_suite(MovementTests)
+	await _run_fixture_suite(TraversalTests)
+	await _run_fixture_suite(ClimbTests)
+	await _run_fixture_suite(FieldTests)
+	await _run_fixture_suite(CompanionTests)
+	await _run_fixture_suite(CarrierTests)
+	await _run_fixture_suite(CarrierControllerTests)
+	await _run_fixture_suite(AbilityRouteTests)
+	await _run_fixture_suite(NpcTests)
+	await _run_fixture_suite(WaveTests)
+	await _run_fixture_suite(WeatherTests)
+	await _run_fixture_suite(EnvironmentTests)
+	await _run_fixture_suite(TextureTests)
+	await _run_fixture_suite(CelUniformTests)
+	await _run_fixture_suite(TrainTests)
+	await _run_fixture_suite(SceneryMotionTests)
+	await _run_fixture_suite(WildlifeTests)
+	await _run_fixture_suite(WildlifeDensityTests)
+	await _run_fixture_suite(PetalTests)
+	await _run_fixture_suite(AquaticTests)
+	await _run_fixture_suite(MarineTests)
+	await _run_fixture_suite(VisualTests)
+	await _run_fixture_suite(OutlineTests)
+	await _run_fixture_suite(GeometryLodTests)
+	await _run_fixture_suite(SceneryTests)
+	await _run_fixture_suite(SceneTests)
+	await _run_fixture_suite(SupplyTests)
+	await _run_fixture_suite(ThirdTests)
+	await _run_fixture_suite(MatchTests)
+	await _run_fixture_suite(CombatFeedTests)
+	if failures == 0:
+		print("TEST_PASS assertions=", assertions, " shard=", shard_index, "/", shard_count)
+	if failures == 0 and shard_index == 0:
+		print("FAN_REFERENCE_PASS cases=", fixtures.fanHits.size(), " maximumDamageError=", maximum_fan_error)
+		print("PROJECTILE_REFERENCE_PASS launches=", fixtures.projectileLaunches.size(), " flights=", fixtures.projectileFlight.size(), " maximumVectorError=", maximum_projectile_error)
+		print("LOB_REFERENCE_PASS controls=", fixtures.lobControl.size(), " flights=", fixtures.lobFlight.size(), " maximumVectorError=", maximum_lob_error)
+		print("LINE_REFERENCE_PASS cases=", fixtures.lineHits.size(), " maximumDamageError=", maximum_line_error)
+		print("KINETIC_REFERENCE_PASS cases=", fixtures.kineticFlight.size(), " maximumVectorError=", maximum_kinetic_error)
+		print("TARGETING_REFERENCE_PASS cone=", fixtures.targetingCone.size(), " launchRanges=", fixtures.launchRange.size(), " locks=", fixtures.lockCandidates.size(), " priorities=", fixtures.aimPriority.size(), " confirmations=", fixtures.lockConfirmation.size())
+		print("MISSILE_REFERENCE_PASS flights=", fixtures.missileFlight.size(), " damage=", fixtures.missileDamage.size(), " lines=", fixtures.missileLines.size(), " rays=", fixtures.missileRays.size())
+		print("STRUCTURE_REFERENCE_PASS separation=", fixtures.structureSeparation.size(), " levels=", fixtures.structureLevels.size(), " clientPoses=", fixtures.structureClient.size(), " worlds=", fixtures.structureWorlds.size(), " blasts=", fixtures.structureBlasts.size())
+		print("REACHABILITY_REFERENCE_PASS cases=", fixtures.reachability.size())
+		print("MODEL_CENTRE_REFERENCE_PASS cases=", fixtures.modelCentres.size())
+		print("FOOTPRINT_REFERENCE_PASS cases=", fixtures.shotFootprints.size())
+		print("COCKPIT_REFERENCE_PASS poses=", fixtures.cockpitPoses.size(), " ports=", fixtures.cockpitMuzzles.size())
+	_finish()
+
+# Inline source cases and the suites interleaved with them form one unit that only shard 0 runs.
+func _core_tests(fixtures: Dictionary) -> void:
+	core_running = true
+	print("SOURCE_CORE_BEGIN")
 	await RoomWorldResourceTests.run(self)
 	await RoomWorldPrebuildTests.run(self)
 	for fixture in fixtures.volumes:
@@ -284,69 +377,7 @@ func _run() -> void:
 	await FootprintSuite.run(self, fixtures.shotFootprints)
 	await _run_fixture_suite(CockpitSuite)
 	await MuzzleTests.run(self, fixtures.muzzleLaunches)
-	await _run_fixture_suite(CameraTests)
-	await _run_fixture_suite(BurstTests)
-	await _run_fixture_suite(ProjectileVisualTests)
-	await _run_fixture_suite(StatusTests)
-	await _run_fixture_suite(HealAuraTests)
-	await _run_fixture_suite(SimulationFrameTests)
-	await _run_fixture_suite(DeathLifecycleTests)
-	await _run_fixture_suite(MissileDefenseTests)
-	await _run_fixture_suite(AimingPresentationTests)
-	await _run_fixture_suite(BotTests)
-	await _run_fixture_suite(BossTests)
-	await _run_fixture_suite(CampaignTests)
-	await _run_fixture_suite(SuperTests)
-	await _run_fixture_suite(ControlsTests)
-	await _run_fixture_suite(MobileTests)
-	await _run_fixture_suite(ViewTests)
-	await _run_fixture_suite(PlayerViewTests)
-	await _run_fixture_suite(BodyTests)
-	await _run_fixture_suite(MovementTests)
-	await _run_fixture_suite(TraversalTests)
-	await _run_fixture_suite(ClimbTests)
-	await _run_fixture_suite(FieldTests)
-	await _run_fixture_suite(CompanionTests)
-	await _run_fixture_suite(CarrierTests)
-	await _run_fixture_suite(CarrierControllerTests)
-	await _run_fixture_suite(AbilityRouteTests)
-	await _run_fixture_suite(NpcTests)
-	await _run_fixture_suite(WaveTests)
-	await _run_fixture_suite(WeatherTests)
-	await _run_fixture_suite(EnvironmentTests)
-	await _run_fixture_suite(TextureTests)
-	await _run_fixture_suite(CelUniformTests)
-	await _run_fixture_suite(TrainTests)
-	await _run_fixture_suite(SceneryMotionTests)
-	await _run_fixture_suite(WildlifeTests)
-	await _run_fixture_suite(WildlifeDensityTests)
-	await _run_fixture_suite(PetalTests)
-	await _run_fixture_suite(AquaticTests)
-	await _run_fixture_suite(MarineTests)
-	await _run_fixture_suite(VisualTests)
-	await _run_fixture_suite(OutlineTests)
-	await _run_fixture_suite(GeometryLodTests)
-	await _run_fixture_suite(SceneryTests)
-	await _run_fixture_suite(SceneTests)
-	await _run_fixture_suite(SupplyTests)
-	await _run_fixture_suite(ThirdTests)
-	await _run_fixture_suite(MatchTests)
-	await _run_fixture_suite(CombatFeedTests)
-	if failures == 0:
-		print("TEST_PASS assertions=", assertions)
-		print("FAN_REFERENCE_PASS cases=", fixtures.fanHits.size(), " maximumDamageError=", maximum_fan_error)
-		print("PROJECTILE_REFERENCE_PASS launches=", fixtures.projectileLaunches.size(), " flights=", fixtures.projectileFlight.size(), " maximumVectorError=", maximum_projectile_error)
-		print("LOB_REFERENCE_PASS controls=", fixtures.lobControl.size(), " flights=", fixtures.lobFlight.size(), " maximumVectorError=", maximum_lob_error)
-		print("LINE_REFERENCE_PASS cases=", fixtures.lineHits.size(), " maximumDamageError=", maximum_line_error)
-		print("KINETIC_REFERENCE_PASS cases=", fixtures.kineticFlight.size(), " maximumVectorError=", maximum_kinetic_error)
-		print("TARGETING_REFERENCE_PASS cone=", fixtures.targetingCone.size(), " launchRanges=", fixtures.launchRange.size(), " locks=", fixtures.lockCandidates.size(), " priorities=", fixtures.aimPriority.size(), " confirmations=", fixtures.lockConfirmation.size())
-		print("MISSILE_REFERENCE_PASS flights=", fixtures.missileFlight.size(), " damage=", fixtures.missileDamage.size(), " lines=", fixtures.missileLines.size(), " rays=", fixtures.missileRays.size())
-		print("STRUCTURE_REFERENCE_PASS separation=", fixtures.structureSeparation.size(), " levels=", fixtures.structureLevels.size(), " clientPoses=", fixtures.structureClient.size(), " worlds=", fixtures.structureWorlds.size(), " blasts=", fixtures.structureBlasts.size())
-		print("REACHABILITY_REFERENCE_PASS cases=", fixtures.reachability.size())
-		print("MODEL_CENTRE_REFERENCE_PASS cases=", fixtures.modelCentres.size())
-		print("FOOTPRINT_REFERENCE_PASS cases=", fixtures.shotFootprints.size())
-		print("COCKPIT_REFERENCE_PASS poses=", fixtures.cockpitPoses.size(), " ports=", fixtures.cockpitMuzzles.size())
-	_finish()
+	core_running = false
 
 func _finish() -> void:
 	if failures > 0:
@@ -357,6 +388,11 @@ func _finish() -> void:
 	get_tree().quit(0 if failures == 0 else 1)
 
 func _run_fixture_suite(suite: Variant) -> void:
+	if not core_running:
+		shard_ordinal += 1
+		if shard_ordinal % shard_count != shard_index:
+			return
+	var started := Time.get_ticks_msec()
 	failure_scope = suite.resource_path
 	var previous_assertions := assertions
 	var previous_failures := failures
@@ -386,7 +422,7 @@ func _run_fixture_suite(suite: Variant) -> void:
 		await suite.run(self, data)
 	data.clear()
 	await get_tree().process_frame
-	print("SOURCE_SUITE_END ", suite.resource_path, " assertions=", assertions - previous_assertions, " failures=", failures - previous_failures)
+	print("SOURCE_SUITE_END ", suite.resource_path, " assertions=", assertions - previous_assertions, " failures=", failures - previous_failures, " ms=", Time.get_ticks_msec() - started)
 	failure_scope = "core"
 
 func _run_arguments(suite: GDScript) -> int:

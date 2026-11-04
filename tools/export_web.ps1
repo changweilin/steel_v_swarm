@@ -1,4 +1,5 @@
-param([Parameter(Mandatory = $true)][string]$Godot)
+# CI passes -SkipFixtures because its sharded fixtures job runs tests/run.tscn against the baseline.
+param([Parameter(Mandatory = $true)][string]$Godot, [switch]$SkipFixtures)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 $Godot = (Get-Command $Godot -ErrorAction Stop).Source
@@ -30,7 +31,7 @@ function Invoke-GodotCheck([string]$Name, [string[]]$Arguments, [string]$Marker 
 Invoke-GodotCheck 'import' @('--headless', '--path', $projectRoot, '--editor', '--import')
 # Seasonal native worlds load hundreds of megabytes per match. Fixtures compare MultiMesh
 # and texture buffers, which the headless renderer discards; ANGLE also runs on GPU-less CI.
-Invoke-GodotCheck 'fixtures' @('--path', $projectRoot, '--rendering-method', 'gl_compatibility', '--rendering-driver', 'opengl3_angle', '--audio-driver', 'Dummy', '--position', '-32000,-32000', '--resolution', '64x64', 'res://tests/run.tscn') 'TEST_PASS' 1800000
+if (-not $SkipFixtures) { Invoke-GodotCheck 'fixtures' @('--path', $projectRoot, '--rendering-method', 'gl_compatibility', '--rendering-driver', 'opengl3_angle', '--audio-driver', 'Dummy', '--position', '-32000,-32000', '--resolution', '64x64', 'res://tests/run.tscn') 'TEST_PASS' 1800000 }
 Invoke-GodotCheck 'smoke' @('--headless', '--path', $projectRoot, '--', '--smoke') 'SMOKE_PASS' 600000
 & (Join-Path $PSScriptRoot 'test_network.ps1') -Godot $Godot
 Invoke-GodotCheck 'export' @('--headless', '--path', $projectRoot, '--export-release', 'Web', (Join-Path $outputRoot 'index.html'))

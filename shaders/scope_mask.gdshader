@@ -19,6 +19,11 @@ uniform float weather_inner_vmin = 0.0;
 uniform vec4 weather_color_0 : source_color;
 uniform vec4 weather_color_1 : source_color;
 uniform vec4 weather_color_2 : source_color;
+// The weather layer keeps its last CSS background while it fades, so with
+// weather_retained its mode and outer scoped stop no longer follow the scope.
+uniform bool weather_retained = false;
+uniform bool weather_scoped = false;
+uniform float weather_outer_vmin = 0.0;
 // Above sigma 4 the blur can run as separate RGBA8 targets, each the full overlay size:
 // 1 stores the 2x2 downsample of the page in blur_source, 2 and 3 store the horizontal
 // and vertical passes of the previous target, and 0 with blur_split upscales blur_source.
@@ -226,9 +231,10 @@ vec3 overlay_rgb(vec2 uv, vec2 screen_uv, vec2 viewport) {
 			rgb = composite(rgb, gradient_tile(fire, fire_opacity, pixel));
 		}
 	}
-	float weather_position = scoped ? distance_px / vmin : ellipse;
-	float weather_middle = scoped ? weather_inner_vmin : weather_stops.x;
-	float weather_end = scoped ? radius_vmin : weather_stops.y;
+	bool weather_circle = weather_retained ? weather_scoped : scoped;
+	float weather_position = weather_circle ? distance_px / vmin : ellipse;
+	float weather_middle = weather_circle ? weather_inner_vmin : weather_stops.x;
+	float weather_end = weather_circle ? (weather_retained ? weather_outer_vmin : radius_vmin) : weather_stops.y;
 	vec4 weather = weather_position <= weather_middle
 		? gradient_mix(weather_color_0, weather_color_1, weather_position / max(0.000001, weather_middle))
 		: gradient_mix(weather_color_1, weather_color_2, (weather_position - weather_middle) / max(0.000001, weather_end - weather_middle));

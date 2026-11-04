@@ -108,6 +108,14 @@ contracts to D, and `scripts/main.gd` or `project.godot` contracts to E.
 
 Accepted contracts awaiting their consumers:
 
+- **Sonnet view — weather-gradient lifetime:** with `weather_retained` set,
+  `shaders/scope_mask.gdshader` draws the weather layer from `weather_scoped` and
+  `weather_outer_vmin` (plus the existing `weather_inner_vmin`/`weather_stops`) instead
+  of `scoped` and `radius_vmin`, so the ring and mask follow the current input while the
+  last weather background fades. It defaults off. Bound to the current values, all 18
+  `scope_raster` cases stay exact; a 3 vmin outer offset fails exactly the six scoped
+  weather cases. Acceptance: `tests/scope_weather_retention.tscn` reading the new
+  parameters, plus the transition and raster scenes.
 - **Sonnet view — scope blur pass targets:** `shaders/scope_mask.gdshader` takes `pass`
   (0 final, 1 down, 2 horizontal, 3 vertical), `blur_source` and `blur_split`. Each
   target copies the overlay material with its `pass` and the previous target as

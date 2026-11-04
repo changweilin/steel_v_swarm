@@ -27,14 +27,40 @@ vec4 gradient_mix(vec4 a, vec4 b, float amount) {
 	return vec4(alpha > 0.0 ? rgb / alpha : vec3(0.0), alpha);
 }
 
-vec3 scope_color(vec3 input_color, float distance_px, float radius) {
+vec3 unorm8(vec3 value) {
+	return floor(clamp(value, 0.0, 1.0) * 255.0 + 0.5) / 255.0;
+}
+
+// Chromium rasterizes each CSS gradient into an RGBA8 premultiplied tile through
+// Skia's GPU dither: an 8x8 ordered table (no X^Y mix, unlike the CPU stage),
+// stored as bytes, offset by -0.5 and scaled by one 8-bit step.
+float skia_dither(vec2 pixel) {
+	int x = int(mod(pixel.x, 8.0));
+	int y = int(mod(pixel.y, 8.0));
+	int m = (y & 1) << 5 | (x & 1) << 4 | (y & 2) << 2 | (x & 2) << 1 | (y & 4) >> 1 | (x & 4) >> 2;
+	float table = floor((float(m) / 64.0 - 63.0 / 128.0 + 0.5) * 255.0 + 0.5) / 255.0;
+	return (table - 0.5) / 255.0;
+}
+
+// Element opacity without a render surface is applied before the dither.
+vec4 gradient_tile(vec4 straight, float opacity, vec2 pixel) {
+	float coverage = unorm8(vec3(straight.a * opacity)).x;
+	vec3 premultiplied = clamp(straight.rgb * coverage + vec3(skia_dither(pixel)), vec3(0.0), vec3(coverage));
+	return vec4(unorm8(premultiplied), coverage);
+}
+
+vec3 composite(vec3 below, vec4 tile) {
+	return unorm8(tile.rgb + below * (1.0 - tile.a));
+}
+
+vec3 scope_color(vec3 input_color, float distance_px, float radius, vec2 pixel) {
 	if (!scoped) {
 		return input_color;
 	}
 	if (distance_px >= radius) {
 		return vec3(0.0);
 	}
-	return distance_px >= radius - ring_width ? mix(input_color, ring_color.rgb, ring_color.a) : input_color;
+	return distance_px >= radius - ring_width ? composite(input_color, gradient_tile(ring_color, 1.0, pixel)) : input_color;
 }
 
 vec2 mirror_uv(vec2 uv) {
@@ -42,7 +68,7 @@ vec2 mirror_uv(vec2 uv) {
 }
 
 vec3 scoped_pixel(vec2 uv, vec2 viewport, float radius) {
-	return scope_color(textureLod(screen_texture, uv, 0.0).rgb, length((uv - vec2(0.5)) * viewport), radius);
+	return scope_color(textureLod(screen_texture, uv, 0.0).rgb, length((uv - vec2(0.5)) * viewport), radius, floor(uv * viewport));
 }
 
 // A half-resolution texel holds the 2x2 pixels around its centre.
@@ -110,7 +136,8 @@ void fragment() {
 	float vmin = min(viewport.x, viewport.y) / 100.0;
 	float distance_px = length((UV - vec2(0.5)) * viewport);
 	float radius = radius_vmin * vmin;
-	vec3 rgb = scope_color(textureLod(screen_texture, SCREEN_UV, 0.0).rgb, distance_px, radius);
+	vec2 pixel = floor(UV * viewport);
+	vec3 rgb = scope_color(textureLod(screen_texture, SCREEN_UV, 0.0).rgb, distance_px, radius, pixel);
 	// CSS ellipse gradients use the farthest corner as the final stop.
 	float ellipse = length((UV - vec2(0.5)) * sqrt(2.0));
 	vec4 fire = ellipse <= fire_stops.y
@@ -118,8 +145,13 @@ void fragment() {
 		: gradient_mix(fire_color_1, fire_color_2, (ellipse - fire_stops.y) / max(0.000001, fire_stops.z - fire_stops.y));
 	// Blur and gradient belong to one element, so its opacity applies to the group.
 	if (fire_opacity > 0.0) {
-		vec3 backdrop = fire_blur > 0.0 ? backdrop_blur(SCREEN_UV, viewport, radius) : rgb;
-		rgb = mix(rgb, mix(backdrop, fire.rgb, fire.a), fire_opacity);
+		if (fire_blur > 0.0) {
+			// The filtered backdrop and the gradient form an RGBA8 render surface first.
+			vec3 group = composite(unorm8(backdrop_blur(SCREEN_UV, viewport, radius)), gradient_tile(fire, 1.0, pixel));
+			rgb = unorm8(mix(rgb, group, fire_opacity));
+		} else {
+			rgb = composite(rgb, gradient_tile(fire, fire_opacity, pixel));
+		}
 	}
 	float weather_position = scoped ? distance_px / vmin : ellipse;
 	float weather_middle = scoped ? weather_inner_vmin : weather_stops.x;
@@ -127,6 +159,6 @@ void fragment() {
 	vec4 weather = weather_position <= weather_middle
 		? gradient_mix(weather_color_0, weather_color_1, weather_position / max(0.000001, weather_middle))
 		: gradient_mix(weather_color_1, weather_color_2, (weather_position - weather_middle) / max(0.000001, weather_end - weather_middle));
-	rgb = mix(rgb, weather.rgb, weather.a * weather_opacity);
+	rgb = composite(rgb, gradient_tile(weather, weather_opacity, pixel));
 	COLOR = vec4(rgb, 1.0);
 }

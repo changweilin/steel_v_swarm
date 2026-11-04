@@ -48,11 +48,20 @@ Requests from the published capture:
 - **Lane B — scope backdrop:** `shaders/scope_mask.gdshader` now blurs the composited
   scope layer with the browser's Skia structure (Gaussian to sigma 4, half-resolution
   above it, mirrored edges) and applies opacity to the blur and gradient as one group.
-  `tests/scope_raster.tscn` retains 2 failures: case 4 (1 pixel) and case 10 (2 pixels)
-  are 3/255 over two bytes at fire 0.35, weather 0.7. RGBA8 rounding after the fire
-  layer or the horizontal pass does not explain them. A single pass costs up to 625
-  samples per pixel at sigma 4 while fire fog shows, so `scripts/scope_overlay.gd`
-  needs separate horizontal and vertical passes before Web and mobile delivery (O24).
+  Each gradient is an RGBA8 premultiplied tile: coverage (alpha times opacity, unless a
+  render surface holds the opacity) rounds to a byte before premultiplying, and Skia's
+  GPU dither (the 8x8 table without the CPU stage's X^Y) applies before storage.
+  `tests/scope_raster.tscn` retains 1 failure: case 9 (360x640, fire 0.8, unscoped) has
+  2 pixels at 3/255 on checker edges. The blur causes it: half-resolution sigma 2.4 fits
+  best, yet matches only 58% of bytes where the fire gradient is transparent. The dither
+  phase is not one screen-space table: the source's top rows prefer a 2-row shift over
+  its bottom rows, consistent with per-tile raster origins that are not modelled.
+- **Sonnet view — scope blur passes:** a single pass costs up to 625 samples per pixel at
+  sigma 4 while fire fog shows, so `scripts/scope_overlay.gd` needs separate horizontal
+  and vertical passes before Web and mobile delivery (O24). Lane B splits
+  `shaders/scope_mask.gdshader` when the view lane names the pass targets. The dither and
+  tile phase use `floor(UV * viewport)` of the full overlay, so every pass must cover it.
+  Acceptance: `tests/scope_raster.tscn` with no new failures.
 
 - [ ] **O26 — World contracts:** complete before SN8.
   - **O26A (lane A):** "layered-deck reference provenance". The producer is

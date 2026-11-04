@@ -128,6 +128,18 @@ Accepted contracts awaiting their consumers:
   `SubViewport`s matched all 18 `scope_raster` cases with no failing pixels on ANGLE,
   and failed all six split cases without the vertical pass. Acceptance:
   `tests/scope_raster.tscn` with the targets wired.
+- **Sonnet presentation — death rim inset shadow:** `SourceInsetShadow` (`scripts/source_inset_shadow.gd`,
+  passes in `shaders/source_mask_blur.gdshader`) reproduces Chromium's tiled Ganesh mask blur:
+  `build(viewport_size, blur, spread)` adds one-shot `SubViewport`s and exposes `texture`, one
+  coverage byte per viewport pixel. Rebuild it on resize; it rejects shapes outside that GPU path.
+  `shaders/death_rim_present.gdshader` now draws the rim colour as bytes (alpha 0.55 is
+  140/255). Bind `shadow_texture = texture`, `target_size = canvas_size = size`, `padding = 0`
+  in `scripts/death_overlay.gd`, replacing its `death_rim_mask`/`splat_blur` passes
+  (`splat_blur` stays for `splat_tile.gd`). `tests/source_inset_shadow.tscn` passes all three
+  captured rims through that binding; the current death overlay still fails them. Element
+  opacity below 1 is uncaptured: Chromium composites the stored tile under the pulse opacity,
+  which this present does not model. Acceptance: all six `tests/death_render.tscn --
+  --source-capture` cases.
 - **Sonnet view:** `SourceNumeric.hypot(x, y)` matches Chromium 151 `Math.hypot` bits
   (`tests/source_numeric.tscn`, corpus from `tools/source_numeric_capture.mjs`); bind it
   in `ViewLockState.advance` and `MinimapVision.shadows`. Browser `Math.sin`/`cos` stays

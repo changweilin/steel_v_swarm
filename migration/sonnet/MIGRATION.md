@@ -52,15 +52,12 @@ rejects the fog scenes. On Linux run real-renderer checks as
 - [ ] **SN4 — Model suites:** `tests/body_suite.gd` and `tests/body_{aim,combat,gait}_suite.gd`
   now stream `bodyGeometry`, and `civilian_body_suite.gd` streams `civilianBodyGeometry`
   (the `body_suite` closure is 267,787,693 bytes against the unchanged 268,435,456). Do not
-  raise the encoded-byte budget. Remaining: (1) `tests/burst_suite.gd` parents its fixture
-  units under a `BattleSimulation`, but cannot run until `assets/bodies/steel_s01.scn` (and
-  the other non-kami hero bodies) are published by Opus lane F. (2) `civilian_body_suite` fails
-  4020 outline-width checks with the incremental reader: civilian `torso` and `pelvis`
-  shells report `local_width` .06904542 / min .00303800 / max .00621409 against
-  .06829454 / .00300496 / .00614651. Source semantics of `OutlineRules.local_uniforms` after
-  appearance scaling need Opus before `scripts/civilian_body_builder.gd` changes. (3) The
-  registered consumer hashes are stale for all edited suites (see the O25 request below);
-  CI `tools/check_git_storage.mjs --verify-fixtures` stays red until they are published.
+  raise the encoded-byte budget. `civilian_body_suite` passes on a real driver: outline
+  uniforms are measured with the torso/pelvis shoulder scale neutral, matching every
+  captured shell width. Remaining: `tests/burst_suite.gd` parents its fixture units under
+  a `BattleSimulation`, but its poses need `assets/bodies/steel_s01.scn` and the other
+  non-kami hero bodies (Opus lane F), and its integration case fails explicitly until an
+  authored world is prepared.
   Acceptance: `--fixture-suite=tests/{body,civilian_body,burst}_suite.gd` with empty engine
   error output, on a real driver for the MultiMesh sections.
 
@@ -110,10 +107,8 @@ rejects the fog scenes. On Linux run real-renderer checks as
   data/worlds/berlin_1_autumn.json", a stale world producer hash. It clears with the
   corrected world references and SN8 regeneration.
 
-- **Opus lane A — O25 consumer refresh:** publish `refreshFixtureConsumers` for the edited
-  `tests/{campaign,death_sequence,burst,civilian_body,body,body_aim,body_combat,body_gait}_suite.gd`;
-  their registered hashes are stale and `check_git_storage.mjs --verify-fixtures` fails
-  on them in CI. Other owners' sub-suites that `body_suite` preloads still fail on a real
+- **Opus — shared suite failures:** the consumer plan is current and
+  `check_git_storage.mjs --verify-fixtures` passes. Other owners' sub-suites that `body_suite` preloads still fail on a real
   driver (flame and fire presentation, scene damage, NPC primitives); the streamed
   `body_suite`, `body_aim`, `body_combat` and `body_gait` checks themselves report none. Also unresolved on the shared side:
   `death_sequence_suite` reports 4916 failures (death-camera random order, topple

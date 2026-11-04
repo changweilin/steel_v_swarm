@@ -104,6 +104,11 @@ static func integration(h: Node) -> void:
 	h.add_child(sim)
 	var map_data := Content.map_variant(0, 1)
 	await sim.setup(map_data, [{"peer": 992, "side": "STEEL", "character": "t06", "bot": false}], {"time": "day", "weather": "clear"}, true)
+	# A missing authored world is an explicit failed acceptance case, never a skipped one.
+	if not sim.setup_complete or not sim.pilots.has(992):
+		h._check(false, "Burst integration: authored match preparation required: " + sim.setup_error)
+		sim.free()
+		return
 	sim.set_physics_process(false)
 	var actor: BattleUnit = sim.pilots[992]
 	actor.position = Vector3(0, 100, 0)

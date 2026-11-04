@@ -1520,6 +1520,20 @@ whole-system rewrite or edits to producer APIs; escalate as Sonnet AGENTS says.
   blur amount and scope-edge coverage; do not loosen the existing tolerance.
   Acceptance: original `tests/scope_raster.tscn` cases, including mixed fire/weather
   and high-density small scoped views, after the ring-color producer is corrected.
+- **Opus lane B — scope blur pass targets:** `scripts/scope_overlay.gd` (view lane) will
+  own three full-overlay `SubViewport` targets, all `size = overlay size`, RGBA8,
+  `transparent_bg = false`, no mipmaps, nearest filter, `render_target_update_mode =
+  UPDATE_WHEN_VISIBLE`, created only while `fire_opacity > 0 and fire_blur > 4.0`:
+  `scope_blur_down` (2x2 box downsample of the scoped page, stored at half resolution),
+  `scope_blur_h` (horizontal Gaussian of `scope_blur_down`) and `scope_blur_v` (vertical
+  Gaussian of `scope_blur_h`). The final overlay shader samples `scope_blur_v` bilinearly
+  and keeps the byte-rounded upscale, gradient tile and group opacity. Required from
+  `shaders/scope_mask.gdshader` (Opus-owned, so not edited here): a `pass` mode uniform
+  (0 final, 1 down, 2 horizontal, 3 vertical) and `sampler2D blur_source` bound per
+  target, with every pass dither and tile phase still `floor(UV * viewport)` of the full
+  overlay. `fire_blur <= 4.0` keeps the current single pass. Acceptance:
+  `tests/scope_raster.tscn` with no failures and no per-pixel loop above 2 * extent + 2
+  samples; this lane then wires the targets and binds the uniforms.
 - **Opus — weather-gradient lifetime:** separate the weather gradient's mode and
   outer scoped stop from the current scope mode and ring radius in
   `shaders/scope_mask.gdshader`. The original `weatherFog` callback keeps its last

@@ -360,7 +360,11 @@ Accepted contracts awaiting their consumers:
   driver.
 - [ ] **O24 — Delivery:** certify native exports, mobile sensors/safe areas,
   Compatibility rendering, memory/performance, threaded audio on Web, browser
-  single-player, Pages artifact contents and production native hosting. Complete
+  single-player, Pages artifact contents and production native hosting.
+  The Web preset excludes every seasonal world, so `tools/test_web.py` never
+  reaches `SMOKE_PASS` (first reached at `d2419e08`: no console output for 180 s
+  after `index.pck`). CI runs it non-blocking and holds Pages packaging and
+  `deploy` until it passes. Complete
   transport loss/bandwidth/MTU and cleanup acceptance on the current build.
   Populated snapshots exceed the 64 KiB WebSocket default; validate the 1 MiB
   session buffer against the largest authored match and the Web client.

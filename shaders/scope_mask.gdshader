@@ -115,20 +115,41 @@ vec3 backdrop_blur(vec2 uv, vec2 viewport, float radius) {
 	float sigma = fire_blur * 0.5;
 	int extent = int(ceil(3.0 * sigma));
 	float falloff = 2.0 * sigma * sigma;
+	for (int i = -extent; i <= extent; i++) {
+		total += exp(-float(i * i) / falloff);
+	}
 	// Half-resolution coordinates of this pixel, split into a texel and its bilinear weight.
 	vec2 scaled = (pixel + vec2(0.5)) * 0.5 - vec2(0.5);
 	vec2 base = floor(scaled);
 	vec2 blend = scaled - base;
+	// The downsample, horizontal pass and vertical pass each store RGBA8 bytes, so the
+	// four texels around this pixel are blurred separately, horizontal pass first.
+	vec3 texel_00 = vec3(0.0);
+	vec3 texel_10 = vec3(0.0);
+	vec3 texel_01 = vec3(0.0);
+	vec3 texel_11 = vec3(0.0);
 	for (int y = -extent; y <= extent + 1; y++) {
-		float row = (1.0 - blend.y) * exp(-float(y * y) / falloff) + blend.y * exp(-float((y - 1) * (y - 1)) / falloff);
+		vec3 row_0 = vec3(0.0);
+		vec3 row_1 = vec3(0.0);
 		for (int x = -extent; x <= extent + 1; x++) {
-			float weight = row * ((1.0 - blend.x) * exp(-float(x * x) / falloff) + blend.x * exp(-float((x - 1) * (x - 1)) / falloff));
-			vec2 texel = base + vec2(float(x), float(y));
-			sum += weight * scoped_box(texel * 2.0 + vec2(1.0), viewport, radius);
-			total += weight;
+			vec3 texel = unorm8(scoped_box((base + vec2(float(x), float(y))) * 2.0 + vec2(1.0), viewport, radius));
+			row_0 += (x <= extent ? exp(-float(x * x) / falloff) : 0.0) * texel;
+			row_1 += (x > -extent ? exp(-float((x - 1) * (x - 1)) / falloff) : 0.0) * texel;
 		}
+		row_0 = unorm8(row_0 / total);
+		row_1 = unorm8(row_1 / total);
+		float weight_0 = y <= extent ? exp(-float(y * y) / falloff) : 0.0;
+		float weight_1 = y > -extent ? exp(-float((y - 1) * (y - 1)) / falloff) : 0.0;
+		texel_00 += weight_0 * row_0;
+		texel_10 += weight_0 * row_1;
+		texel_01 += weight_1 * row_0;
+		texel_11 += weight_1 * row_1;
 	}
-	return sum / total;
+	// Bilinear weights here are quarters, so byte-scaled sums are exact; the browser's
+	// upscale rounds their halves down.
+	vec3 top = mix(round(unorm8(texel_00 / total) * 255.0), round(unorm8(texel_10 / total) * 255.0), blend.x);
+	vec3 bottom = mix(round(unorm8(texel_01 / total) * 255.0), round(unorm8(texel_11 / total) * 255.0), blend.x);
+	return ceil(mix(top, bottom, blend.y) - vec3(0.5)) / 255.0;
 }
 
 void fragment() {
@@ -148,7 +169,8 @@ void fragment() {
 		if (fire_blur > 0.0) {
 			// The filtered backdrop and the gradient form an RGBA8 render surface first.
 			vec3 group = composite(unorm8(backdrop_blur(SCREEN_UV, viewport, radius)), gradient_tile(fire, 1.0, pixel));
-			rgb = unorm8(mix(rgb, group, fire_opacity));
+			// The opacity-scaled group is stored as bytes before it blends over the page.
+			rgb = unorm8(unorm8(group * fire_opacity) + rgb * (1.0 - fire_opacity));
 		} else {
 			rgb = composite(rgb, gradient_tile(fire, fire_opacity, pixel));
 		}

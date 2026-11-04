@@ -45,23 +45,16 @@ Requests from the published capture:
   Chromium 151 PCM no longer match the catalogue. Acceptance: `audio_suite` returns
   to its one known `_buses` failure (`tests/audio_clip_suite.gd:30` adds 152 more)
   and `tests/audio_lifecycle.tscn` clears its 6 movement noise/oscillator failures.
-- **Lane B — scope backdrop:** `shaders/scope_mask.gdshader` now blurs the composited
-  scope layer with the browser's Skia structure (Gaussian to sigma 4, half-resolution
-  above it, mirrored edges) and applies opacity to the blur and gradient as one group.
-  Each gradient is an RGBA8 premultiplied tile: coverage (alpha times opacity, unless a
-  render surface holds the opacity) rounds to a byte before premultiplying, and Skia's
-  GPU dither (the 8x8 table without the CPU stage's X^Y) applies before storage.
-  `tests/scope_raster.tscn` retains 1 failure: case 9 (360x640, fire 0.8, unscoped) has
-  2 pixels at 3/255 on checker edges. The blur causes it: half-resolution sigma 2.4 fits
-  best, yet matches only 58% of bytes where the fire gradient is transparent. The dither
-  phase is not one screen-space table: the source's top rows prefer a 2-row shift over
-  its bottom rows, consistent with per-tile raster origins that are not modelled.
 - **Sonnet view — scope blur passes:** a single pass costs up to 625 samples per pixel at
   sigma 4 while fire fog shows, so `scripts/scope_overlay.gd` needs separate horizontal
   and vertical passes before Web and mobile delivery (O24). Lane B splits
-  `shaders/scope_mask.gdshader` when the view lane names the pass targets. The dither and
-  tile phase use `floor(UV * viewport)` of the full overlay, so every pass must cover it.
-  Acceptance: `tests/scope_raster.tscn` with no new failures.
+  `shaders/scope_mask.gdshader` when the view lane names the pass targets. Above sigma 4
+  the browser stores a 2x2 box downsample, the horizontal pass and the vertical pass as
+  RGBA8 at half resolution, upscales bilinearly rounding halves down, and blends the
+  group as bytes after opacity; the shader computes these stores in one pass, so split
+  targets must be RGBA8 in that order. The dither and tile phase use `floor(UV *
+  viewport)` of the full overlay, so every pass must cover it; the source's per-tile
+  dither origins remain unmodelled. Acceptance: `tests/scope_raster.tscn` with no failures.
 
 - [ ] **O26 — World contracts:** complete before SN8.
   - **O26A (lane A):** "layered-deck reference provenance". The producer is

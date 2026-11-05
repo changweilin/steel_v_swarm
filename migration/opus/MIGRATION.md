@@ -41,10 +41,11 @@ those files, so publish a complete capture only for a source or producer change.
 Requests from the published capture:
 
 - **Sonnet presentation — native audio catalogue:** rerun the audio importers against the
-  published `data/audio_{clips,synth,move}.json`. Their noise realization and
-  Chromium 151 PCM no longer match the catalogue. Acceptance: `audio_suite` returns
-  to its one known `_buses` failure (`tests/audio_clip_suite.gd:30` adds 152 more)
-  and `tests/audio_lifecycle.tscn` clears its 6 movement noise/oscillator failures.
+  published `data/audio_{synth,move,music,probes}.json`. The complete capture that
+  fixed the campaign oracle redrew their noise realization, so `audio_suite` went from
+  matching `tests/fixture_baseline.json` to 134 failures (84 synthesis stem provenance,
+  44 gain envelopes, 4 music, 2 movement noise). Acceptance: `audio_suite` back to the
+  baseline and `tests/audio_lifecycle.tscn` without movement noise/oscillator failures.
 
 - [ ] **O26 — World contracts:** complete before SN8.
   - **O26A (lane A):** "layered-deck reference provenance". The producer is

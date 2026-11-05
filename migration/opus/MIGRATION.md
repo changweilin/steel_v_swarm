@@ -180,6 +180,20 @@ Accepted contracts awaiting their consumers:
   low-alpha texels and puts 12 imported cases up to 4 bytes outside the gate. Data
   rules hold only the opacity; carry the 0.75 amount in the consumer's capture.
   Acceptance: transitions and frames in `CampaignDialogue` against the source rows.
+- **Sonnet view — cinematic crawl edge mask:** `shaders/campaign_crawl_mask.gdshader` is a
+  `CanvasGroup` material holding the scroll viewport's composed contents. Bind
+  `mask_box = (top, height)` of the unscrolled viewport in render-target pixels, and
+  `stop_offsets`/`stop_alphas` from the source mask (`parse_mask` in
+  `tests/crawl_mask_material.gd` reads the captured string); rows outside the box clip to
+  transparent. Chromium quantizes the mask to one alpha byte per row, applies it to the
+  RGBA8 layer and stores bytes before source-over; the material does the same. That model
+  matches all three `campaign_crawl_mask.json` rasters and four device-scale captures
+  (`tools/crawl_mask_material_capture.mjs`: 1.25x, 1.5x, 2x) within one byte. Rows within
+  0.05 byte of a rounding boundary and the GPU's UNORM8 blend rounding stay 1 byte off.
+  `tests/crawl_mask_material.tscn` passes all ten at the unchanged 2-byte gate and
+  fails them without the mask. Fractional box offsets are uncaptured: Chromium snaps
+  the contents there as well. Acceptance: the six `tests/campaign_crawl_mask.tscn`
+  rasters through `CampaignCinematic`, with the controls unbound.
 - **Opus lane A — portrait import alpha:** `assets/avatars/`, `assets/mech_avatars/` and
   other campaign art imports use `process/fix_alpha_border=true`, so native texels with
   low alpha no longer hold the source RGB. Decide the import setting with the campaign

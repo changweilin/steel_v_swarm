@@ -162,6 +162,28 @@ Accepted contracts awaiting their consumers:
   corpus, including sin(pi/4). Each call costs about 114 µs in headless desktop GDScript, so bind
   it only where source bits matter (the lock-glow pulse and PiP yaw half-angles).
   Acceptance: the strict lock-glow scalar scene and the PiP orientation cases.
+- **Sonnet view — radio portrait filter:** `shaders/css_grayscale_group.gdshader` is a
+  `CanvasGroup` material for `.dlg-row .dlg-av`: `amount` is the `grayscale()` amount
+  (0.75 inactive; `none` is 0) and `opacity` the element opacity, applied after the
+  filter. A CSS filter covers the element's whole layer, so the group must hold the
+  portrait with its `#0c0e12` background and faction frame; filtering children
+  separately rounds twice. In Chromium 151 the filter transitions on the opacity's
+  ease-out clock (amount = 0.75 * (1 - progress)), including reversals.
+  `tests/dialogue_portrait_filter.tscn` (`tools/dialogue_portrait_filter_capture.mjs`)
+  passes all 45 1:1 rasters (four avatars, a translucent probe, both endpoints and
+  three paused transition frames) at the 2-byte gate, maximum 2 bytes, and fails the
+  inactive cases without the filter. Chromium's matrix equals the Filter Effects one,
+  but its output on an opaque page carries an unmodelled bias of about -0.03 byte, so
+  most pixels stay 1 byte off. The test decodes the original PNG bytes: the avatar
+  imports keep Godot's default `fix_alpha_border=true`, which rewrites the RGB of
+  low-alpha texels and puts 12 imported cases up to 4 bytes outside the gate. Data
+  rules hold only the opacity; carry the 0.75 amount in the consumer's capture.
+  Acceptance: transitions and frames in `CampaignDialogue` against the source rows.
+- **Opus lane A — portrait import alpha:** `assets/avatars/`, `assets/mech_avatars/` and
+  other campaign art imports use `process/fix_alpha_border=true`, so native texels with
+  low alpha no longer hold the source RGB. Decide the import setting with the campaign
+  art consumers (it changes every captured portrait raster) and reimport. Acceptance:
+  `tests/dialogue_portrait_filter.tscn` passes through `Content.campaign_art` textures.
 - **Sonnet presentation:** a replica's `state_received` fires only for an accepted snapshot; rejected
   packets reach `Session.snapshot_heard`. `control_status.unbalanced` is published.
 - **Sonnet presentation:** `command.move_mag` carries the stick's double magnitude for `InputRules.moving`.

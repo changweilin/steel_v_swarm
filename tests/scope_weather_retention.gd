@@ -28,11 +28,14 @@ func _run() -> void:
 				var material := overlay.shader_material
 				_check(float(material.get_shader_parameter("radius_vmin")) == float(frame.radius),
 					"Scope radius follows the current input independently")
-				_check(bool(material.get_shader_parameter("scoped")) == bool(frame.gradient.scoped),
+				_check(bool(material.get_shader_parameter("scoped")) == bool(frame.scoped),
+					"Scope mode follows the current input independently")
+				_check(bool(material.get_shader_parameter("weather_retained"))
+					and bool(material.get_shader_parameter("weather_scoped")) == bool(frame.gradient.scoped),
 					"Weather gradient retains its original mode during fade-out")
 				if frame.gradient.scoped:
 					_check(float(material.get_shader_parameter("weather_inner_vmin")) == float(frame.gradient.stops[0])
-						and float(material.get_shader_parameter("radius_vmin")) == float(frame.gradient.stops[1]),
+						and float(material.get_shader_parameter("weather_outer_vmin")) == float(frame.gradient.stops[1]),
 						"Scoped weather retains both original stops during fade-out")
 				else:
 					var expected := Vector2(frame.gradient.stops[0], frame.gradient.stops[1])

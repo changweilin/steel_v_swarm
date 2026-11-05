@@ -47,7 +47,8 @@ whole-system rewrite or edits to producer APIs; escalate as Sonnet AGENTS says.
   cases, including decimal rounding boundaries and exact input bits, against the
   shader parameters. An unscoped weather gradient also keeps its prior stops
   while fading to zero. `tests/scope_weather_retention.tscn` retains the original
-  fade and mode-change programs, including the four shared-shader failures below.
+  fade and mode-change programs; the overlay binds `weather_retained`,
+  `weather_scoped` and `weather_outer_vmin` so the ring follows the current input.
   The underlying scope radius and weather-stop functions apply the original
   `value || 0` before clamping, including NaN and signed infinities. `node
   tools/scope_nonfinite_capture.mjs`, `node --test tests/scope_nonfinite.test.mjs`
@@ -1520,33 +1521,16 @@ whole-system rewrite or edits to producer APIs; escalate as Sonnet AGENTS says.
   blur amount and scope-edge coverage; do not loosen the existing tolerance.
   Acceptance: original `tests/scope_raster.tscn` cases, including mixed fire/weather
   and high-density small scoped views, after the ring-color producer is corrected.
-- **Opus lane B — scope blur pass targets:** `scripts/scope_overlay.gd` (view lane) will
-  own three full-overlay `SubViewport` targets, all `size = overlay size`, RGBA8,
-  `transparent_bg = false`, no mipmaps, nearest filter, `render_target_update_mode =
-  UPDATE_WHEN_VISIBLE`, created only while `fire_opacity > 0 and fire_blur > 4.0`:
-  `scope_blur_down` (2x2 box downsample of the scoped page, stored at half resolution),
-  `scope_blur_h` (horizontal Gaussian of `scope_blur_down`) and `scope_blur_v` (vertical
-  Gaussian of `scope_blur_h`). The final overlay shader samples `scope_blur_v` bilinearly
-  and keeps the byte-rounded upscale, gradient tile and group opacity. Required from
-  `shaders/scope_mask.gdshader` (Opus-owned, so not edited here): a `pass` mode uniform
-  (0 final, 1 down, 2 horizontal, 3 vertical) and `sampler2D blur_source` bound per
-  target, with every pass dither and tile phase still `floor(UV * viewport)` of the full
-  overlay. `fire_blur <= 4.0` keeps the current single pass. Acceptance:
-  `tests/scope_raster.tscn` with no failures and no per-pixel loop above 2 * extent + 2
-  samples; this lane then wires the targets and binds the uniforms.
-- **Opus — weather-gradient lifetime:** separate the weather gradient's mode and
-  outer scoped stop from the current scope mode and ring radius in
-  `shaders/scope_mask.gdshader`. The original `weatherFog` callback keeps its last
-  CSS background when density reaches zero, while its opacity fades for 0.5 s;
-  the scope ring and aiming mode can change independently during that fade. In
-  `tests/fixtures/scope_values.json::programs`, a scoped weather gradient retains
-  9.8/17.8 vmin while the ring moves to 22.4 vmin. Native currently reuses
-  `radius_vmin` and `scoped` for both layers. `tests/scope_weather_retention.tscn`
-  retains four failures across radius changes and scope toggles; the unscoped
-  no-toggle fade passes. Preserve independent parameters and the original fade,
-  gradients and ring composition. Acceptance: this lane binds the agreed parameters
-  and updates this strict scene to read them, all captured retention programs and
-  transition/raster tests pass, and no wider pixel tolerance is used.
+- **Opus — scope blur page texture:** `ScopeOverlay` now owns the three RGBA8
+  `scope_blur_{down,h,v}` targets and switches the final pass to them after a
+  three-frame warmup, but only when its `page_texture` is set; `tests/scope_raster.tscn`
+  sets it and passes all 18 cases with the split path engaged. In `scripts/main.gd` the
+  overlay sits in the root viewport, whose unscoped page (3D world plus lower HUD) no
+  `SubViewport` can sample, so production keeps the single-pass blur. Request: publish a
+  texture of the page below the overlay, the overlay's size, without the overlay itself
+  (for example a world `SubViewport` that `main.gd` composites), and assign it to
+  `scope_overlay.page_texture`. Acceptance: `tests/scope_raster.tscn` unchanged, and a
+  populated `-View` run showing `blur_split` true while `fire_opacity > 0` with blur above 4.
 - **Opus — raster comparator byte boundary:** `tests/raster_compare.gd` compares
   Color's Float32-normalized channel differences against double `2.0/255`.
   Opaque weather-only cases 2/8/14 in `build/scope_raster/report.json` have exact

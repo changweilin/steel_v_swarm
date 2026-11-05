@@ -82,20 +82,12 @@ rejects the fog scenes. On Linux run real-renderer checks as
   reasons: the dummy renderer cannot read `MultiMesh` instances, and non-`surfaces` entries
   such as `SourceMesh_14` (a `MultiMeshInstance3D`) keep their material in `material_override`,
   which the mesh-surface lookup misses (~265 "cel definitions" failures).
-  Remaining, all outside this lease: (1) Presentation lane: `tests/worlds.gd:106` finds the map entry with
-  `entry.id == map_id`, so every `*_swap_*` bundle crashes; resolve `<id>_swap` through
-  `entry.swapped_variants` as `WorldVariant.required` does. (2) Presentation and model lanes: read colours at
-  `tests/worlds.gd:306-314` from `ARRAY_CUSTOM2` (exact Float32, no 1/255 tolerance), and bind
-  `scripts/{scenery_motion,fire_presentation,mine_presentation}.gd` and the tint copy at
-  `scripts/scene_damage_geometry.gd:103` to `uSourceAlbedo` (the `ShaderMaterial` breaks their
-  typed `StandardMaterial3D` reads). (3) Opus lane A: publish a numeric tape for inline
-  world-chunk colours (`SourceFixtureSections.restore_numbers`) so the snap tolerance can go.
-  (4) `tools/migrate_worlds.ps1` reports "Source world selection failed": under Windows
-  PowerShell 5.1 `Start-Process -PassThru` leaves `ExitCode` null unless the process handle
-  is cached (`$null = $p.Handle`). Not regenerated yet: the other bundles selected by smoke
-  and the baseline transports, and `SMOKE_PASS`/transport runs, which wait on (2). The three
-  `berlin_1_*` resources are regenerated but stay unqualified until `tests/worlds.gd` and the
-  consumers in (2) are fixed. `scripts/room_world_resources.gd`,
+  Remaining: Opus lane A must publish a numeric tape for inline world-chunk colours
+  (`SourceFixtureSections.restore_numbers`) so the snap tolerance can go. The test-side swap lookup,
+  `ARRAY_CUSTOM2` colour check, `uSourceAlbedo` consumers and `migrate_worlds.ps1` handle fix are in
+  place but unverified on a real driver. Not regenerated yet: the other bundles selected by smoke
+  and the baseline transports, and `SMOKE_PASS`/transport runs, which wait on that run. The three
+  `berlin_1_*` resources are regenerated but stay unqualified until `tests/worlds.tscn` passes on a real driver. `scripts/room_world_resources.gd`,
   `scripts/world.gd` and the resources must agree, with no early simulation or fabricated
   map. Acceptance: `tests/worlds.tscn -- --bundle=<bundle>`, `SMOKE_PASS` and both baseline
   transport cases. Run alone.

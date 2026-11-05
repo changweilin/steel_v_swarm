@@ -44,11 +44,15 @@ func apply(target: Node3D, kind: String, id: int, dimensions: Dictionary, destin
 		captured = true
 	var strength := 0.0 if destination == 0 else .45 if destination == 1 else 1.0
 	var tint := Color.hex((int(profile.color) << 8) | 0xff).srgb_to_linear()
-	for material: BaseMaterial3D in colours:
+	for material: Material in colours:
 		var original: Color = colours[material]
 		var colour := original.lerp(tint, strength * .55) * (1 - strength * .22)
 		colour.a = original.a
-		material.albedo_color = colour.linear_to_srgb()
+		if material is ShaderMaterial:
+			# Vertex-colour cel surfaces keep their state in uSourceAlbedo, not albedo_color.
+			(material as ShaderMaterial).set_shader_parameter("uSourceAlbedo", colour.linear_to_srgb())
+		else:
+			(material as BaseMaterial3D).albedo_color = colour.linear_to_srgb()
 	var radius := maxf(1, float(dimensions.radius))
 	var height := maxf(1, float(dimensions.height))
 	for part: Dictionary in parts:
@@ -101,6 +105,12 @@ func _capture_node(node: GeometryInstance3D, seen: Dictionary) -> void:
 					var copy := original.duplicate() as BaseMaterial3D
 					material_copies[original] = copy
 					colours[copy] = original.albedo_color.srgb_to_linear()
+				materials.append(material_copies[original])
+			elif original is ShaderMaterial and original.get_shader_parameter("uSourceAlbedo") is Color:
+				if not material_copies.has(original):
+					var copy := original.duplicate() as ShaderMaterial
+					material_copies[original] = copy
+					colours[copy] = (original.get_shader_parameter("uSourceAlbedo") as Color).srgb_to_linear()
 				materials.append(material_copies[original])
 			else:
 				materials.append(original)

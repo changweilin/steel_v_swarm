@@ -40,6 +40,7 @@ func _run() -> void:
 		base.size = Vector2(viewport.size)
 		viewport.add_child(base)
 		var overlay := ScopeOverlay.new()
+		overlay.page_texture = base.texture
 		viewport.add_child(overlay)
 		overlay.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 		overlay.size = Vector2(viewport.size)
@@ -51,9 +52,12 @@ func _run() -> void:
 			if tween != null and tween.is_valid():
 				tween.pause()
 				tween.custom_step(1)
-		for frame in range(3):
+		# The chained blur targets need their warmup before the final pass switches to them.
+		for frame in range(ScopeOverlay.BLUR_WARMUP_FRAMES + 3):
 			await get_tree().process_frame
 			await RenderingServer.frame_post_draw
+		_check(overlay.split_wanted() == bool(overlay.shader_material.get_shader_parameter("blur_split")),
+			"Scope blur passes are active exactly when the overlay is large enough and blurred: case=%d" % index)
 		var actual := viewport.get_texture().get_image()
 		var expected := Image.new()
 		var valid := expected.load_png_from_buffer(Marshalls.base64_to_raw(item.png)) == OK and expected.get_size() == actual.get_size()

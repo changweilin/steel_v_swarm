@@ -19,6 +19,17 @@ uniform float weather_inner_vmin = 0.0;
 uniform vec4 weather_color_0 : source_color;
 uniform vec4 weather_color_1 : source_color;
 uniform vec4 weather_color_2 : source_color;
+// The weather layer keeps its last CSS background while it fades, so with
+// weather_retained its mode and outer scoped stop no longer follow the scope.
+uniform bool weather_retained = false;
+uniform bool weather_scoped = false;
+uniform float weather_outer_vmin = 0.0;
+// Above sigma 4 the blur can run as separate RGBA8 targets, each the full overlay size:
+// 1 stores the 2x2 downsample of the page in blur_source, 2 and 3 store the horizontal
+// and vertical passes of the previous target, and 0 with blur_split upscales blur_source.
+uniform int pass = 0;
+uniform bool blur_split = false;
+uniform sampler2D blur_source : repeat_disable, filter_nearest;
 
 vec4 gradient_mix(vec4 a, vec4 b, float amount) {
 	float t = clamp(amount, 0.0, 1.0);
@@ -27,22 +38,52 @@ vec4 gradient_mix(vec4 a, vec4 b, float amount) {
 	return vec4(alpha > 0.0 ? rgb / alpha : vec3(0.0), alpha);
 }
 
-vec3 scope_color(vec3 input_color, float distance_px, float radius) {
+vec3 unorm8(vec3 value) {
+	return floor(clamp(value, 0.0, 1.0) * 255.0 + 0.5) / 255.0;
+}
+
+// Chromium rasterizes each CSS gradient into an RGBA8 premultiplied tile through
+// Skia's GPU dither: an 8x8 ordered table (no X^Y mix, unlike the CPU stage),
+// stored as bytes, offset by -0.5 and scaled by one 8-bit step.
+float skia_dither(vec2 pixel) {
+	int x = int(mod(pixel.x, 8.0));
+	int y = int(mod(pixel.y, 8.0));
+	int m = (y & 1) << 5 | (x & 1) << 4 | (y & 2) << 2 | (x & 2) << 1 | (y & 4) >> 1 | (x & 4) >> 2;
+	float table = floor((float(m) / 64.0 - 63.0 / 128.0 + 0.5) * 255.0 + 0.5) / 255.0;
+	return (table - 0.5) / 255.0;
+}
+
+// Element opacity without a render surface is applied before the dither.
+vec4 gradient_tile(vec4 straight, float opacity, vec2 pixel) {
+	float coverage = unorm8(vec3(straight.a * opacity)).x;
+	vec3 premultiplied = clamp(straight.rgb * coverage + vec3(skia_dither(pixel)), vec3(0.0), vec3(coverage));
+	return vec4(unorm8(premultiplied), coverage);
+}
+
+vec3 composite(vec3 below, vec4 tile) {
+	return unorm8(tile.rgb + below * (1.0 - tile.a));
+}
+
+vec3 scope_color(vec3 input_color, float distance_px, float radius, vec2 pixel) {
 	if (!scoped) {
 		return input_color;
 	}
 	if (distance_px >= radius) {
 		return vec3(0.0);
 	}
-	return distance_px >= radius - ring_width ? mix(input_color, ring_color.rgb, ring_color.a) : input_color;
+	return distance_px >= radius - ring_width ? composite(input_color, gradient_tile(ring_color, 1.0, pixel)) : input_color;
 }
 
 vec2 mirror_uv(vec2 uv) {
 	return vec2(1.0) - abs(vec2(1.0) - mod(uv, vec2(2.0)));
 }
 
+vec3 page_rgb(vec2 uv) {
+	return pass == 1 ? textureLod(blur_source, uv, 0.0).rgb : textureLod(screen_texture, uv, 0.0).rgb;
+}
+
 vec3 scoped_pixel(vec2 uv, vec2 viewport, float radius) {
-	return scope_color(textureLod(screen_texture, uv, 0.0).rgb, length((uv - vec2(0.5)) * viewport), radius);
+	return scope_color(page_rgb(uv), length((uv - vec2(0.5)) * viewport), radius, floor(uv * viewport));
 }
 
 // A half-resolution texel holds the 2x2 pixels around its centre.
@@ -64,7 +105,51 @@ vec3 scoped_box(vec2 center, vec2 viewport, float radius) {
 			return sum * 0.25;
 		}
 	}
-	return textureLod(screen_texture, uv, 0.0).rgb;
+	return page_rgb(uv);
+}
+
+int half_extent() {
+	return int(ceil(3.0 * fire_blur * 0.5));
+}
+
+float half_falloff() {
+	return 2.0 * (fire_blur * 0.5) * (fire_blur * 0.5);
+}
+
+float half_total(int extent, float falloff) {
+	float total = 0.0;
+	for (int i = -extent; i <= extent; i++) {
+		total += exp(-float(i * i) / falloff);
+	}
+	return total;
+}
+
+// Target pixel q holds half-resolution texel q - pad, so the texels the upscale and
+// both passes reach beyond each edge stay addressable. Each dimension d therefore
+// needs d >= ceil(d / 2) + 2 * extent + 2.
+vec3 blur_store(vec2 pixel, vec2 viewport, float radius) {
+	int extent = half_extent();
+	float pad = float(extent + 1);
+	if (pass == 1) {
+		return unorm8(scoped_box((pixel - vec2(pad)) * 2.0 + vec2(1.0), viewport, radius));
+	}
+	float falloff = half_falloff();
+	ivec2 limit = textureSize(blur_source, 0) - ivec2(1);
+	ivec2 texel = ivec2(pixel);
+	ivec2 step = pass == 2 ? ivec2(1, 0) : ivec2(0, 1);
+	vec3 sum = vec3(0.0);
+	for (int i = -extent; i <= extent; i++) {
+		sum += exp(-float(i * i) / falloff) * texelFetch(blur_source, clamp(texel + step * i, ivec2(0), limit), 0).rgb;
+	}
+	return unorm8(sum / half_total(extent, falloff));
+}
+
+// Bilinear weights here are quarters, so byte-scaled sums are exact; the browser's
+// upscale rounds their halves down.
+vec3 upscale(vec3 texel_00, vec3 texel_10, vec3 texel_01, vec3 texel_11, vec2 blend) {
+	vec3 top = mix(round(texel_00 * 255.0), round(texel_10 * 255.0), blend.x);
+	vec3 bottom = mix(round(texel_01 * 255.0), round(texel_11 * 255.0), blend.x);
+	return ceil(mix(top, bottom, blend.y) - vec3(0.5)) / 255.0;
 }
 
 // CSS backdrop blur sees the composited scope layer below it, with sigma in pixels.
@@ -86,47 +171,79 @@ vec3 backdrop_blur(vec2 uv, vec2 viewport, float radius) {
 		}
 		return sum / total;
 	}
-	float sigma = fire_blur * 0.5;
-	int extent = int(ceil(3.0 * sigma));
-	float falloff = 2.0 * sigma * sigma;
+	int extent = half_extent();
+	float falloff = half_falloff();
+	total = half_total(extent, falloff);
 	// Half-resolution coordinates of this pixel, split into a texel and its bilinear weight.
 	vec2 scaled = (pixel + vec2(0.5)) * 0.5 - vec2(0.5);
 	vec2 base = floor(scaled);
 	vec2 blend = scaled - base;
-	for (int y = -extent; y <= extent + 1; y++) {
-		float row = (1.0 - blend.y) * exp(-float(y * y) / falloff) + blend.y * exp(-float((y - 1) * (y - 1)) / falloff);
-		for (int x = -extent; x <= extent + 1; x++) {
-			float weight = row * ((1.0 - blend.x) * exp(-float(x * x) / falloff) + blend.x * exp(-float((x - 1) * (x - 1)) / falloff));
-			vec2 texel = base + vec2(float(x), float(y));
-			sum += weight * scoped_box(texel * 2.0 + vec2(1.0), viewport, radius);
-			total += weight;
-		}
+	if (blur_split) {
+		ivec2 texel = ivec2(base) + ivec2(extent + 1);
+		return upscale(texelFetch(blur_source, texel, 0).rgb, texelFetch(blur_source, texel + ivec2(1, 0), 0).rgb,
+			texelFetch(blur_source, texel + ivec2(0, 1), 0).rgb, texelFetch(blur_source, texel + ivec2(1, 1), 0).rgb, blend);
 	}
-	return sum / total;
+	// The downsample, horizontal pass and vertical pass each store RGBA8 bytes, so the
+	// four texels around this pixel are blurred separately, horizontal pass first.
+	vec3 texel_00 = vec3(0.0);
+	vec3 texel_10 = vec3(0.0);
+	vec3 texel_01 = vec3(0.0);
+	vec3 texel_11 = vec3(0.0);
+	for (int y = -extent; y <= extent + 1; y++) {
+		vec3 row_0 = vec3(0.0);
+		vec3 row_1 = vec3(0.0);
+		for (int x = -extent; x <= extent + 1; x++) {
+			vec3 texel = unorm8(scoped_box((base + vec2(float(x), float(y))) * 2.0 + vec2(1.0), viewport, radius));
+			row_0 += (x <= extent ? exp(-float(x * x) / falloff) : 0.0) * texel;
+			row_1 += (x > -extent ? exp(-float((x - 1) * (x - 1)) / falloff) : 0.0) * texel;
+		}
+		row_0 = unorm8(row_0 / total);
+		row_1 = unorm8(row_1 / total);
+		float weight_0 = y <= extent ? exp(-float(y * y) / falloff) : 0.0;
+		float weight_1 = y > -extent ? exp(-float((y - 1) * (y - 1)) / falloff) : 0.0;
+		texel_00 += weight_0 * row_0;
+		texel_10 += weight_0 * row_1;
+		texel_01 += weight_1 * row_0;
+		texel_11 += weight_1 * row_1;
+	}
+	return upscale(unorm8(texel_00 / total), unorm8(texel_10 / total), unorm8(texel_01 / total), unorm8(texel_11 / total), blend);
 }
 
-void fragment() {
-	vec2 viewport = max(viewport_size, vec2(1.0));
+vec3 overlay_rgb(vec2 uv, vec2 screen_uv, vec2 viewport) {
 	float vmin = min(viewport.x, viewport.y) / 100.0;
-	float distance_px = length((UV - vec2(0.5)) * viewport);
+	float distance_px = length((uv - vec2(0.5)) * viewport);
 	float radius = radius_vmin * vmin;
-	vec3 rgb = scope_color(textureLod(screen_texture, SCREEN_UV, 0.0).rgb, distance_px, radius);
+	vec2 pixel = floor(uv * viewport);
+	vec3 rgb = scope_color(textureLod(screen_texture, screen_uv, 0.0).rgb, distance_px, radius, pixel);
 	// CSS ellipse gradients use the farthest corner as the final stop.
-	float ellipse = length((UV - vec2(0.5)) * sqrt(2.0));
+	float ellipse = length((uv - vec2(0.5)) * sqrt(2.0));
 	vec4 fire = ellipse <= fire_stops.y
 		? gradient_mix(fire_color_0, fire_color_1, (ellipse - fire_stops.x) / max(0.000001, fire_stops.y - fire_stops.x))
 		: gradient_mix(fire_color_1, fire_color_2, (ellipse - fire_stops.y) / max(0.000001, fire_stops.z - fire_stops.y));
 	// Blur and gradient belong to one element, so its opacity applies to the group.
 	if (fire_opacity > 0.0) {
-		vec3 backdrop = fire_blur > 0.0 ? backdrop_blur(SCREEN_UV, viewport, radius) : rgb;
-		rgb = mix(rgb, mix(backdrop, fire.rgb, fire.a), fire_opacity);
+		if (fire_blur > 0.0) {
+			// The filtered backdrop and the gradient form an RGBA8 render surface first.
+			vec3 group = composite(unorm8(backdrop_blur(screen_uv, viewport, radius)), gradient_tile(fire, 1.0, pixel));
+			// The opacity-scaled group is stored as bytes before it blends over the page.
+			rgb = unorm8(unorm8(group * fire_opacity) + rgb * (1.0 - fire_opacity));
+		} else {
+			rgb = composite(rgb, gradient_tile(fire, fire_opacity, pixel));
+		}
 	}
-	float weather_position = scoped ? distance_px / vmin : ellipse;
-	float weather_middle = scoped ? weather_inner_vmin : weather_stops.x;
-	float weather_end = scoped ? radius_vmin : weather_stops.y;
+	bool weather_circle = weather_retained ? weather_scoped : scoped;
+	float weather_position = weather_circle ? distance_px / vmin : ellipse;
+	float weather_middle = weather_circle ? weather_inner_vmin : weather_stops.x;
+	float weather_end = weather_circle ? (weather_retained ? weather_outer_vmin : radius_vmin) : weather_stops.y;
 	vec4 weather = weather_position <= weather_middle
 		? gradient_mix(weather_color_0, weather_color_1, weather_position / max(0.000001, weather_middle))
 		: gradient_mix(weather_color_1, weather_color_2, (weather_position - weather_middle) / max(0.000001, weather_end - weather_middle));
-	rgb = mix(rgb, weather.rgb, weather.a * weather_opacity);
+	return composite(rgb, gradient_tile(weather, weather_opacity, pixel));
+}
+
+void fragment() {
+	vec2 viewport = max(viewport_size, vec2(1.0));
+	float radius = radius_vmin * (min(viewport.x, viewport.y) / 100.0);
+	vec3 rgb = pass == 0 ? overlay_rgb(UV, SCREEN_UV, viewport) : blur_store(floor(UV * viewport), viewport, radius);
 	COLOR = vec4(rgb, 1.0);
 }

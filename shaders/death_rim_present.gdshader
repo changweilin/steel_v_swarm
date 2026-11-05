@@ -7,5 +7,7 @@ uniform vec4 rim_color : source_color;
 uniform float opacity;
 void fragment() {
 	float shadow = texture(shadow_texture, (UV * canvas_size + vec2(padding)) / target_size).a;
-	COLOR = vec4(rim_color.rgb, rim_color.a * opacity * shadow);
+	// Chromium paints the shadow colour as 8-bit RGBA: alpha 0.55 draws as 140/255.
+	vec4 color = round(clamp(rim_color, 0.0, 1.0) * 255.0) / 255.0;
+	COLOR = vec4(color.rgb, color.a * opacity * shadow);
 }

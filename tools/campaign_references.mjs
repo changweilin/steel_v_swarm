@@ -37,6 +37,12 @@ export async function campaignReferences(d, venues, narrative, mainSource, sourc
       backgroundScale:capture(/\.prologue-bg-blur \{[^}]*transform: scale\(([\d.]+)\)/,style)},
   };
   const swap = new Function(`${grabFn(roomSource,'rollSideSwap')}\nreturn rollSideSwap;`)();
+  // createRoom copies the requested seat count into the battle config before BattleSim reads it
+  // (BOSS seat plans use config.teamSize); launchStoryBattle requests the chapter's teamSize.
+  const roomTeamSize = /const teamSize = Math\.max\(TEAM\.MIN, Math\.min\(TEAM\.MAX, Math\.round\(m\.teamSize\) \|\| TEAM\.DEFAULT\)\);/;
+  if (!roomTeamSize.test(roomSource) || !roomSource.includes('cfg.teamSize = teamSize;')
+    || !/teamSize: ch\.teamSize,/.test(mainSource)) throw new Error('Original story room team-size seam changed');
+  const teamSize = requested => Math.max(d.TEAM.MIN, Math.min(d.TEAM.MAX, Math.round(requested) || d.TEAM.DEFAULT));
   const maps = [];
   for (const chapter of narrative.STORY) for (const side of ['STEEL','SWARM']) for (const swapped of [false,true]) {
     const foe = d.OTHER_SIDE[side], venue = venues.VENUES.find(v=>v.id===chapter.venueId);
@@ -45,6 +51,7 @@ export async function campaignReferences(d, venues, narrative, mainSource, sourc
     cfg.env = structuredClone(chapter.env); cfg.siege = !!cfg.defSide;
     const saved = Math.random; Math.random = ()=>swapped?0.1:0.9;
     try { swap(cfg); } finally { Math.random = saved; }
+    cfg.teamSize = teamSize(chapter.teamSize);
     maps.push({id:`story_${venue.id}_${foe.toLowerCase()}${swapped?'_swap':''}`,source_id:venue.id,name:venue.name,
       chapter:chapter.id,side,swapped,variants:{[chapter.teamSize]:captureMapVariant(cfg,chapter.teamSize)}});
   }

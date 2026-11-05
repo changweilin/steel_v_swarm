@@ -41,18 +41,11 @@ those files, so publish a complete capture only for a source or producer change.
 Requests from the published capture:
 
 - **Sonnet presentation — native audio catalogue:** rerun the audio importers against the
-  published `data/audio_{clips,synth,move}.json`. Their noise realization and
-  Chromium 151 PCM no longer match the catalogue. Acceptance: `audio_suite` returns
-  to its one known `_buses` failure (`tests/audio_clip_suite.gd:30` adds 152 more)
-  and `tests/audio_lifecycle.tscn` clears its 6 movement noise/oscillator failures.
-- **Lane B — scope backdrop:** `shaders/scope_mask.gdshader` now blurs the composited
-  scope layer with the browser's Skia structure (Gaussian to sigma 4, half-resolution
-  above it, mirrored edges) and applies opacity to the blur and gradient as one group.
-  `tests/scope_raster.tscn` retains 2 failures: case 4 (1 pixel) and case 10 (2 pixels)
-  are 3/255 over two bytes at fire 0.35, weather 0.7. RGBA8 rounding after the fire
-  layer or the horizontal pass does not explain them. A single pass costs up to 625
-  samples per pixel at sigma 4 while fire fog shows, so `scripts/scope_overlay.gd`
-  needs separate horizontal and vertical passes before Web and mobile delivery (O24).
+  published `data/audio_{synth,move,music,probes}.json`. The complete capture that
+  fixed the campaign oracle redrew their noise realization, so `audio_suite` went from
+  matching `tests/fixture_baseline.json` to 134 failures (84 synthesis stem provenance,
+  44 gain envelopes, 4 music, 2 movement noise). Acceptance: `audio_suite` back to the
+  baseline and `tests/audio_lifecycle.tscn` without movement noise/oscillator failures.
 
 - [ ] **O26 — World contracts:** complete before SN8.
   - **O26A (lane A):** "layered-deck reference provenance". The producer is
@@ -116,10 +109,96 @@ contracts to D, and `scripts/main.gd` or `project.godot` contracts to E.
 
 Accepted contracts awaiting their consumers:
 
+- **Sonnet view — weather-gradient lifetime:** with `weather_retained` set,
+  `shaders/scope_mask.gdshader` draws the weather layer from `weather_scoped` and
+  `weather_outer_vmin` (plus the existing `weather_inner_vmin`/`weather_stops`) instead
+  of `scoped` and `radius_vmin`, so the ring and mask follow the current input while the
+  last weather background fades. It defaults off. Bound to the current values, all 18
+  `scope_raster` cases stay exact; a 3 vmin outer offset fails exactly the six scoped
+  weather cases. Acceptance: `tests/scope_weather_retention.tscn` reading the new
+  parameters, plus the transition and raster scenes.
+- **Sonnet view — scope blur pass targets:** `shaders/scope_mask.gdshader` takes `pass`
+  (0 final, 1 down, 2 horizontal, 3 vertical), `blur_source` and `blur_split`. Each
+  target copies the overlay material with its `pass` and the previous target as
+  `blur_source`; pass 1 binds the unscoped page (it applies the scope itself). Target
+  pixel q stores half-resolution texel q - (extent + 1), extent = ceil(1.5 * fire_blur),
+  so each overlay dimension d needs d >= ceil(d / 2) + 2 * extent + 2 (40 px at the
+  6 px maximum); keep the single pass below that. Set `blur_split` on the final material
+  with `blur_source = scope_blur_v`; it defaults off, which keeps the single pass. Passes
+  sample at most 2 * extent + 1 texels per pixel. A harness wiring three full-size RGBA8
+  `SubViewport`s matched all 18 `scope_raster` cases with no failing pixels on ANGLE,
+  and failed all six split cases without the vertical pass. Acceptance:
+  `tests/scope_raster.tscn` with the targets wired.
+- **Sonnet presentation — death rim inset shadow:** `SourceInsetShadow` (`scripts/source_inset_shadow.gd`,
+  passes in `shaders/source_mask_blur.gdshader`) reproduces Chromium's tiled Ganesh mask blur:
+  `build(viewport_size, blur, spread)` adds one-shot `SubViewport`s and exposes `texture`, one
+  coverage byte per viewport pixel. Rebuild it on resize; it rejects shapes outside that GPU path.
+  `shaders/death_rim_present.gdshader` now draws the rim colour as bytes (alpha 0.55 is
+  140/255). Bind `shadow_texture = texture`, `target_size = canvas_size = size`, `padding = 0`
+  in `scripts/death_overlay.gd`, replacing its `death_rim_mask`/`splat_blur` passes
+  (`splat_blur` stays for `splat_tile.gd`). `tests/source_inset_shadow.tscn` passes all three
+  captured rims through that binding; the current death overlay still fails them. Element
+  opacity below 1 is uncaptured: Chromium composites the stored tile under the pulse opacity,
+  which this present does not model. Acceptance: all six `tests/death_render.tscn --
+  --source-capture` cases.
+- **Sonnet presentation — aquatic point compositing:** `shaders/aquatic_points.gdshader` now
+  writes the sRGB encoding of the linear PointsMaterial colour (the unlit correction from
+  `source_vertex_color.gdshader.template`), so all six `tests/aquatic_render.tscn --
+  --source-capture` cases pass at the unchanged tolerance; `aquatic_native` and
+  `aquatic_retirement` still pass. No binding change is needed; retire the request.
+  `ARRAY_COLOR` still stores vertex colours as bytes, within tolerance for these captures
+  but not lossless.
 - **Sonnet view:** `SourceNumeric.hypot(x, y)` matches Chromium 151 `Math.hypot` bits
   (`tests/source_numeric.tscn`, corpus from `tools/source_numeric_capture.mjs`); bind it
-  in `ViewLockState.advance` and `MinimapVision.shadows`. Browser `Math.sin`/`cos` stays
-  open: Chromium and Node disagree, so a native binding needs Chromium's own algorithm.
+  in `ViewLockState.advance` and `MinimapVision.shadows`.
+- **Sonnet view — browser pulse sine:** `SourceTrigonometry.sin(x)`/`.cos(x)`
+  (`scripts/source_trigonometry.gd`) return Chromium 151's Math.sin/Math.cos bits.
+  That build routes both through LLVM libc, which is correctly rounded, so the adapter
+  evaluates exactly (Payne-Hanek against 2/pi, 196-bit fixed point) instead of porting a
+  libm. `tests/source_trigonometry.tscn` passes every case in
+  `tests/fixtures/source_trigonometry.json` (`tools/source_trigonometry_capture.mjs`:
+  specials, k*pi/4 neighbours, the deepest-cancellation double, clock-scale and
+  log-uniform inputs; Node differs on 987), all 300 `lock_glow.json` pulse sines and
+  every `pip_composition.json::poseCases` half-angle. Godot's `sin` misses 344 of that
+  corpus, including sin(pi/4). Each call costs about 114 µs in headless desktop GDScript, so bind
+  it only where source bits matter (the lock-glow pulse and PiP yaw half-angles).
+  Acceptance: the strict lock-glow scalar scene and the PiP orientation cases.
+- **Sonnet view — radio portrait filter:** `shaders/css_grayscale_group.gdshader` is a
+  `CanvasGroup` material for `.dlg-row .dlg-av`: `amount` is the `grayscale()` amount
+  (0.75 inactive; `none` is 0) and `opacity` the element opacity, applied after the
+  filter. A CSS filter covers the element's whole layer, so the group must hold the
+  portrait with its `#0c0e12` background and faction frame; filtering children
+  separately rounds twice. In Chromium 151 the filter transitions on the opacity's
+  ease-out clock (amount = 0.75 * (1 - progress)), including reversals.
+  `tests/dialogue_portrait_filter.tscn` (`tools/dialogue_portrait_filter_capture.mjs`)
+  passes all 45 1:1 rasters (four avatars, a translucent probe, both endpoints and
+  three paused transition frames) at the 2-byte gate, maximum 2 bytes, and fails the
+  inactive cases without the filter. Chromium's matrix equals the Filter Effects one,
+  but its output on an opaque page carries an unmodelled bias of about -0.03 byte, so
+  most pixels stay 1 byte off. The test decodes the original PNG bytes: the avatar
+  imports keep Godot's default `fix_alpha_border=true`, which rewrites the RGB of
+  low-alpha texels and puts 12 imported cases up to 4 bytes outside the gate. Data
+  rules hold only the opacity; carry the 0.75 amount in the consumer's capture.
+  Acceptance: transitions and frames in `CampaignDialogue` against the source rows.
+- **Sonnet view — cinematic crawl edge mask:** `shaders/campaign_crawl_mask.gdshader` is a
+  `CanvasGroup` material holding the scroll viewport's composed contents. Bind
+  `mask_box = (top, height)` of the unscrolled viewport in render-target pixels, and
+  `stop_offsets`/`stop_alphas` from the source mask (`parse_mask` in
+  `tests/crawl_mask_material.gd` reads the captured string); rows outside the box clip to
+  transparent. Chromium quantizes the mask to one alpha byte per row, applies it to the
+  RGBA8 layer and stores bytes before source-over; the material does the same. That model
+  matches all three `campaign_crawl_mask.json` rasters and four device-scale captures
+  (`tools/crawl_mask_material_capture.mjs`: 1.25x, 1.5x, 2x) within one byte. Rows within
+  0.05 byte of a rounding boundary and the GPU's UNORM8 blend rounding stay 1 byte off.
+  `tests/crawl_mask_material.tscn` passes all ten at the unchanged 2-byte gate and
+  fails them without the mask. Fractional box offsets are uncaptured: Chromium snaps
+  the contents there as well. Acceptance: the six `tests/campaign_crawl_mask.tscn`
+  rasters through `CampaignCinematic`, with the controls unbound.
+- **Opus lane A — portrait import alpha:** `assets/avatars/`, `assets/mech_avatars/` and
+  other campaign art imports use `process/fix_alpha_border=true`, so native texels with
+  low alpha no longer hold the source RGB. Decide the import setting with the campaign
+  art consumers (it changes every captured portrait raster) and reimport. Acceptance:
+  `tests/dialogue_portrait_filter.tscn` passes through `Content.campaign_art` textures.
 - **Sonnet presentation:** a replica's `state_received` fires only for an accepted snapshot; rejected
   packets reach `Session.snapshot_heard`. `control_status.unbalanced` is published.
 - **Sonnet presentation:** `command.move_mag` carries the stick's double magnitude for `InputRules.moving`.

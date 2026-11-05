@@ -149,8 +149,19 @@ Accepted contracts awaiting their consumers:
   but not lossless.
 - **Sonnet view:** `SourceNumeric.hypot(x, y)` matches Chromium 151 `Math.hypot` bits
   (`tests/source_numeric.tscn`, corpus from `tools/source_numeric_capture.mjs`); bind it
-  in `ViewLockState.advance` and `MinimapVision.shadows`. Browser `Math.sin`/`cos` stays
-  open: Chromium and Node disagree, so a native binding needs Chromium's own algorithm.
+  in `ViewLockState.advance` and `MinimapVision.shadows`.
+- **Sonnet view — browser pulse sine:** `SourceTrigonometry.sin(x)`/`.cos(x)`
+  (`scripts/source_trigonometry.gd`) return Chromium 151's Math.sin/Math.cos bits.
+  That build routes both through LLVM libc, which is correctly rounded, so the adapter
+  evaluates exactly (Payne-Hanek against 2/pi, 196-bit fixed point) instead of porting a
+  libm. `tests/source_trigonometry.tscn` passes every case in
+  `tests/fixtures/source_trigonometry.json` (`tools/source_trigonometry_capture.mjs`:
+  specials, k*pi/4 neighbours, the deepest-cancellation double, clock-scale and
+  log-uniform inputs; Node differs on 987), all 300 `lock_glow.json` pulse sines and
+  every `pip_composition.json::poseCases` half-angle. Godot's `sin` misses 344 of that
+  corpus, including sin(pi/4). Each call costs about 114 µs in headless desktop GDScript, so bind
+  it only where source bits matter (the lock-glow pulse and PiP yaw half-angles).
+  Acceptance: the strict lock-glow scalar scene and the PiP orientation cases.
 - **Sonnet presentation:** a replica's `state_received` fires only for an accepted snapshot; rejected
   packets reach `Session.snapshot_heard`. `control_status.unbalanced` is published.
 - **Sonnet presentation:** `command.move_mag` carries the stick's double magnitude for `InputRules.moving`.

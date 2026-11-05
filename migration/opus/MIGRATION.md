@@ -140,6 +140,13 @@ Accepted contracts awaiting their consumers:
   opacity below 1 is uncaptured: Chromium composites the stored tile under the pulse opacity,
   which this present does not model. Acceptance: all six `tests/death_render.tscn --
   --source-capture` cases.
+- **Sonnet presentation — aquatic point compositing:** `shaders/aquatic_points.gdshader` now
+  writes the sRGB encoding of the linear PointsMaterial colour (the unlit correction from
+  `source_vertex_color.gdshader.template`), so all six `tests/aquatic_render.tscn --
+  --source-capture` cases pass at the unchanged tolerance; `aquatic_native` and
+  `aquatic_retirement` still pass. No binding change is needed; retire the request.
+  `ARRAY_COLOR` still stores vertex colours as bytes, within tolerance for these captures
+  but not lossless.
 - **Sonnet view:** `SourceNumeric.hypot(x, y)` matches Chromium 151 `Math.hypot` bits
   (`tests/source_numeric.tscn`, corpus from `tools/source_numeric_capture.mjs`); bind it
   in `ViewLockState.advance` and `MinimapVision.shadows`. Browser `Math.sin`/`cos` stays
